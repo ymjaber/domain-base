@@ -1,0 +1,61 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS9057</NoWarn>
+    
+    
+    <!-- Package Information -->
+    <PackageId>DomainBase</PackageId>
+    <Version>1.1.0</Version>
+    <Authors>Yousef Jaber</Authors>
+    <Company>PalJaber</Company>
+    <Description>A lightweight .NET library providing essential building blocks for implementing Domain-Driven Design (DDD) patterns including entities, aggregate roots, value objects, domain events, specifications, and more.</Description>
+    <PackageTags>ddd;domain-driven-design;entity;aggregate;value-object;domain-event;specification;repository;cqrs</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ymjaber/domain-base</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ymjaber/domain-base</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    
+    <!-- Build Properties -->
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    
+    <!-- Build Performance -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DomainBase.Generators\DomainBase.Generators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" 
+                      PrivateAssets="All" />
+  </ItemGroup>
+  
+  <!-- Include the analyzer in the package -->
+  <ItemGroup>
+    <None Include="..\DomainBase.Generators\bin\$(Configuration)\netstandard2.0\DomainBase.Generators.dll" 
+          Pack="true" 
+          PackagePath="analyzers/dotnet/cs" 
+          Visible="false" />
+  </ItemGroup>
+
+</Project>
