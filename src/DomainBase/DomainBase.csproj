@@ -7,10 +7,9 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591;CS9057</NoWarn>
     
-    
     <!-- Package Information -->
     <PackageId>DomainBase</PackageId>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Authors>Yousef Jaber</Authors>
     <Company>PalJaber</Company>
     <Description>A lightweight .NET library providing essential building blocks for implementing Domain-Driven Design (DDD) patterns including entities, aggregate roots, value objects, domain events, specifications, and more.</Description>
@@ -20,6 +19,7 @@
     <RepositoryUrl>https://github.com/ymjaber/domain-base</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     
     <!-- Build Properties -->
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/icon.png" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
