@@ -11,11 +11,11 @@ public class EnumerationTests
         public static readonly OrderStatus Approved = new(2, "Approved");
         public static readonly OrderStatus Rejected = new(3, "Rejected");
 
-        public OrderStatus(int id, string name) : base(id, name) { }
+        public OrderStatus(int value, string name) : base(value, name) { }
     }
 
     // Test enumeration with source generator
-    [Enumeration(GenerateJsonConverter = true)]
+    [GenerateJsonConverter]
     public partial class PaymentMethod : Enumeration
     {
         public static readonly PaymentMethod CreditCard = new(1, "Credit Card");
@@ -23,17 +23,17 @@ public class EnumerationTests
         public static readonly PaymentMethod PayPal = new(3, "PayPal");
         public static readonly PaymentMethod BankTransfer = new(4, "Bank Transfer");
 
-        public PaymentMethod(int id, string name) : base(id, name) { }
+        public PaymentMethod(int value, string name) : base(value, name) { }
     }
 
     [Fact]
-    public void Constructor_SetsIdAndName()
+    public void Constructor_SetsValueAndName()
     {
         // Arrange & Act
         var status = OrderStatus.Submitted;
 
         // Assert
-        Assert.Equal(1, status.Id);
+        Assert.Equal(1, status.Value);
         Assert.Equal("Submitted", status.Name);
     }
 

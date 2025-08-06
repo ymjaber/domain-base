@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Testing;
 using Microsoft.CodeAnalysis.Text;
 using VerifyTests;
+using DomainBase.Generators;
 
 namespace DomainBase.Generators.Tests;
 
@@ -20,18 +21,61 @@ internal static class TestHelper
 
     public static Task Verify(string source)
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source);
+        // Add ValueObject base class and attributes to the compilation
+        var valueObjectSource = """
+            namespace DomainBase
+            {
+                public abstract class ValueObject<TSelf> where TSelf : ValueObject<TSelf>
+                {
+                    protected abstract bool EqualsCore(TSelf other);
+                    protected abstract int GetHashCodeCore();
+                    public override bool Equals(object? obj) => obj is TSelf other && EqualsCore(other);
+                    public override int GetHashCode() => GetHashCodeCore();
+                }
+                
+                [System.AttributeUsage(System.AttributeTargets.Class)]
+                public sealed class ValueObjectAttribute : System.Attribute { }
+                
+                [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field)]
+                public sealed class IncludeInEqualityAttribute : System.Attribute 
+                { 
+                    public int Priority { get; set; } = 0;
+                }
+                
+                [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field)]
+                public sealed class CustomEqualityAttribute : System.Attribute 
+                { 
+                    public int Priority { get; set; } = 0;
+                }
+                
+                [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field)]
+                public sealed class IgnoreEqualityAttribute : System.Attribute { }
+                
+                [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field)]
+                public sealed class SequenceEqualityAttribute : System.Attribute 
+                { 
+                    public bool OrderMatters { get; set; } = true;
+                    public bool DeepEquality { get; set; } = true;
+                    public int Priority { get; set; } = 0;
+                }
+            }
+            """;
+        
+        var syntaxTrees = new[] { 
+            CSharpSyntaxTree.ParseText(source),
+            CSharpSyntaxTree.ParseText(valueObjectSource)
+        };
         var references = GetReferences();
 
         var compilation = CSharpCompilation.Create(
             assemblyName: "Tests",
-            syntaxTrees: new[] { syntaxTree },
+            syntaxTrees: syntaxTrees,
             references: references,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var generator = new EnumerationGenerator();
+        var generators = new IIncrementalGenerator[] { new EnumerationGenerator(), new ValueObjectGenerator() };
 
-        var driver = CSharpGeneratorDriver.Create(generator)
+        var driver = CSharpGeneratorDriver.Create(generators)
             .RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
 
         var runResult = driver.GetRunResult();
@@ -65,9 +109,9 @@ internal static class TestHelper
             references: references,
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var generator = new EnumerationGenerator();
+        var generators = new IIncrementalGenerator[] { new EnumerationGenerator(), new ValueObjectGenerator() };
 
-        var driver = CSharpGeneratorDriver.Create(generator)
+        var driver = CSharpGeneratorDriver.Create(generators)
             .RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
 
         var runResult = driver.GetRunResult();

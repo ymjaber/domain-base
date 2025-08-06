@@ -12,16 +12,16 @@ public abstract class Enumeration : IComparable
     public string Name { get; }
 
     /// <summary>
-    /// Gets the ID of the enumeration.
+    /// Gets the value of the enumeration.
     /// </summary>
-    public int Id { get; }
+    public int Value { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Enumeration"/> class.
     /// </summary>
-    /// <param name="id">The identifier.</param>
+    /// <param name="value">The value.</param>
     /// <param name="name">The name.</param>
-    protected Enumeration(int id, string name) => (Id, Name) = (id, name);
+    protected Enumeration(int value, string name) => (Value, Name) = (value, name);
 
     /// <summary>
     /// Returns the name of the enumeration.
@@ -42,7 +42,7 @@ public abstract class Enumeration : IComparable
         }
 
         var typeMatches = GetType() == obj.GetType();
-        var valueMatches = Id.Equals(otherValue.Id);
+        var valueMatches = Value.Equals(otherValue.Value);
 
         return typeMatches && valueMatches;
     }
@@ -51,14 +51,14 @@ public abstract class Enumeration : IComparable
     /// Returns the hash code for this enumeration.
     /// </summary>
     /// <returns>The hash code.</returns>
-    public override int GetHashCode() => Id.GetHashCode();
+    public override int GetHashCode() => Value.GetHashCode();
 
     /// <summary>
     /// Compares the current enumeration with another enumeration.
     /// </summary>
     /// <param name="obj">The enumeration to compare with.</param>
     /// <returns>A value indicating the relative order.</returns>
-    public int CompareTo(object? obj) => obj is Enumeration other ? Id.CompareTo(other.Id) : 1;
+    public int CompareTo(object? obj) => obj is Enumeration other ? Value.CompareTo(other.Value) : 1;
 
     /// <summary>
     /// Determines whether two enumeration instances are equal.

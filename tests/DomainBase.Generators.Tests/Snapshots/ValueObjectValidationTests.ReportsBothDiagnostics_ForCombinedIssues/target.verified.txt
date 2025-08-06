@@ -1,0 +1,14 @@
+[
+  {
+    Id: DBVO007,
+    Severity: Error,
+    Message: The property 'Name' has equality attribute 'IncludeInEqualityAttribute' but the containing class 'ClassA' does not have the [ValueObject] attribute,
+    Location: (8,6)
+  },
+  {
+    Id: DBVO008,
+    Severity: Error,
+    Message: The class 'ClassB' has [ValueObject] attribute but does not inherit from ValueObject<T>,
+    Location: (13,2)
+  }
+]

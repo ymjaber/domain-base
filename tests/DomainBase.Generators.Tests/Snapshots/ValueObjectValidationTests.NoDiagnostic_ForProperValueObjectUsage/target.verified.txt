@@ -1,0 +1,14 @@
+﻿[
+  {
+    Id: DBVO003,
+    Severity: Error,
+    Message: The property 'Price' has [CustomEquality] but is missing the required static method 'Equals_Price' with signature: private static void Equals_Price(in T value, in T otherValue, out bool result),
+    Location: (12,16)
+  },
+  {
+    Id: DBVO004,
+    Severity: Error,
+    Message: The property 'Price' has [CustomEquality] but is missing the required static method 'GetHashCode_Price',
+    Location: (12,16)
+  }
+]

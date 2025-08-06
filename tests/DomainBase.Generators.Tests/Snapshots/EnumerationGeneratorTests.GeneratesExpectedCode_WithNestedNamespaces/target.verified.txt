@@ -10,7 +10,7 @@ namespace Company.Product.Domain.Enumerations
 {
     partial class Priority
     {
-        private static readonly Dictionary<int, Priority> _byId = new Dictionary<int, Priority>()
+        private static readonly Dictionary<int, Priority> _byValue = new Dictionary<int, Priority>()
         {
             [1] = Low,
             [2] = Medium,
@@ -25,18 +25,18 @@ namespace Company.Product.Domain.Enumerations
         };
 
         /// <summary>
-        /// Gets all values of Priority ordered by ID.
+        /// Gets all values of Priority ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<Priority> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<Priority> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the Priority instance from its ID value.
+        /// Gets the Priority instance from its value.
         /// </summary>
-        public static Priority FromValue(int id)
+        public static Priority FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No Priority with Id {id} found.");
+            throw new InvalidOperationException($"No Priority with value {value} found.");
         }
 
         /// <summary>
@@ -50,11 +50,11 @@ namespace Company.Product.Domain.Enumerations
         }
 
         /// <summary>
-        /// Tries to get the Priority instance from its ID value.
+        /// Tries to get the Priority instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out Priority? result)
+        public static bool TryFromValue(int value, out Priority? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -66,30 +66,6 @@ namespace Company.Product.Domain.Enumerations
         }
 
     }
-
-#if NET6_0_OR_GREATER
-    public class PriorityJsonConverter : System.Text.Json.Serialization.JsonConverter<Priority>
-    {
-        public override Priority? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
-        {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
-            {
-                return Priority.TryFromValue(id, out var result) ? result : null;
-            }
-            if (reader.TokenType == System.Text.Json.JsonTokenType.String)
-            {
-                var name = reader.GetString();
-                return name != null && Priority.TryFromName(name, out var result) ? result : null;
-            }
-            return null;
-        }
-
-        public override void Write(System.Text.Json.Utf8JsonWriter writer, Priority value, System.Text.Json.JsonSerializerOptions options)
-        {
-            writer.WriteNumberValue(value.Id);
-        }
-    }
-#endif
 }
 
     }

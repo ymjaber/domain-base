@@ -14,10 +14,10 @@ namespace DomainBase.Generators;
 [Generator]
 public class EnumerationGenerator : IIncrementalGenerator
 {
-    private static readonly DiagnosticDescriptor DuplicateIdError = new(
+    private static readonly DiagnosticDescriptor DuplicateValueError = new(
         id: "DBENUM001",
-        title: "Duplicate enumeration ID",
-        messageFormat: "The enumeration '{0}' has duplicate ID '{1}'. IDs must be unique within an enumeration type.",
+        title: "Duplicate enumeration value",
+        messageFormat: "The enumeration '{0}' has duplicate value '{1}'. Values must be unique within an enumeration type.",
         category: "Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -26,6 +26,14 @@ public class EnumerationGenerator : IIncrementalGenerator
         id: "DBENUM002", 
         title: "Duplicate enumeration name",
         messageFormat: "The enumeration '{0}' has duplicate name '{1}'. Names must be unique within an enumeration type.",
+        category: "Usage",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor NonPartialClassError = new(
+        id: "DBENUM003",
+        title: "Enumeration class must be partial",
+        messageFormat: "The enumeration '{0}' must be declared as a partial class to enable source generation",
         category: "Usage",
         DiagnosticSeverity.Error,
         isEnabledByDefault: true);
@@ -44,28 +52,26 @@ public class EnumerationGenerator : IIncrementalGenerator
     }
 
     private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
-        => node is ClassDeclarationSyntax c && c.AttributeLists.Count > 0 && c.Modifiers.Any(SyntaxKind.PartialKeyword);
+        => node is ClassDeclarationSyntax c && c.BaseList != null;
 
     private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
     {
         var classDeclarationSyntax = (ClassDeclarationSyntax)context.Node;
+        var semanticModel = context.SemanticModel;
+        var classSymbol = semanticModel.GetDeclaredSymbol(classDeclarationSyntax);
         
-        foreach (var attributeListSyntax in classDeclarationSyntax.AttributeLists)
+        if (classSymbol == null)
+            return null;
+            
+        // Check if the class inherits from Enumeration
+        var baseType = classSymbol.BaseType;
+        while (baseType != null)
         {
-            foreach (var attributeSyntax in attributeListSyntax.Attributes)
-            {
-                var symbol = context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol;
-                if (symbol is not IMethodSymbol attributeSymbol)
-                    continue;
-
-                var attributeType = attributeSymbol.ContainingType;
-                var fullName = attributeType.ToDisplayString();
-
-                if (fullName == "DomainBase.EnumerationAttribute")
-                    return classDeclarationSyntax;
-            }
+            if (baseType.ToDisplayString() == "DomainBase.Enumeration")
+                return classDeclarationSyntax;
+            baseType = baseType.BaseType;
         }
-
+        
         return null;
     }
 
@@ -76,9 +82,10 @@ public class EnumerationGenerator : IIncrementalGenerator
 
         var distinctClasses = classes.Where(x => x is not null).Distinct();
         var enumerationSymbol = compilation.GetTypeByMetadataName("DomainBase.Enumeration");
-        var attributeSymbol = compilation.GetTypeByMetadataName("DomainBase.EnumerationAttribute");
+        var jsonConverterAttributeSymbol = compilation.GetTypeByMetadataName("DomainBase.GenerateJsonConverterAttribute");
+        var efValueConverterAttributeSymbol = compilation.GetTypeByMetadataName("DomainBase.GenerateEfValueConverterAttribute");
 
-        if (enumerationSymbol == null || attributeSymbol == null)
+        if (enumerationSymbol == null)
             return;
 
         foreach (var classDeclaration in distinctClasses)
@@ -94,18 +101,27 @@ public class EnumerationGenerator : IIncrementalGenerator
             if (classSymbol == null || !InheritsFrom(classSymbol, enumerationSymbol))
                 continue;
 
-            var attributeData = classSymbol.GetAttributes()
-                .FirstOrDefault(ad => ad.AttributeClass?.Equals(attributeSymbol, SymbolEqualityComparer.Default) == true);
-
-            if (attributeData == null)
+            // Check if class is partial
+            if (!classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    NonPartialClassError,
+                    classDeclaration.Identifier.GetLocation(),
+                    classSymbol.Name));
                 continue;
+            }
 
             var fields = GetEnumerationFieldsWithDiagnostics(classSymbol, context);
             
             if (fields == null)
                 continue; // Errors were reported
                 
-            var source = GenerateEnumerationExtensions(classSymbol, attributeData, fields);
+            var generateJsonConverter = jsonConverterAttributeSymbol != null && 
+                classSymbol.GetAttributes().Any(ad => ad.AttributeClass?.Equals(jsonConverterAttributeSymbol, SymbolEqualityComparer.Default) == true);
+            var generateEfValueConverter = efValueConverterAttributeSymbol != null && 
+                classSymbol.GetAttributes().Any(ad => ad.AttributeClass?.Equals(efValueConverterAttributeSymbol, SymbolEqualityComparer.Default) == true);
+                
+            var source = GenerateEnumerationExtensions(classSymbol, generateJsonConverter, generateEfValueConverter, fields);
             context.AddSource($"{classSymbol.Name}.g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }
@@ -122,13 +138,10 @@ public class EnumerationGenerator : IIncrementalGenerator
         return false;
     }
 
-    private static string GenerateEnumerationExtensions(INamedTypeSymbol classSymbol, AttributeData attributeData, List<(string name, int id, string displayName)> fields)
+    private static string GenerateEnumerationExtensions(INamedTypeSymbol classSymbol, bool generateJsonConverter, bool generateEfValueConverter, List<(string name, int value, string displayName)> fields)
     {
         var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
         var className = classSymbol.Name;
-        
-        var generateJsonConverter = GetAttributeValue(attributeData, "GenerateJsonConverter", true);
-        var generateEfValueConverter = GetAttributeValue(attributeData, "GenerateEfValueConverter", false);
         
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -163,13 +176,13 @@ public class EnumerationGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
-    private static void GenerateStaticFields(StringBuilder sb, string className, List<(string name, int id, string displayName)> fields)
+    private static void GenerateStaticFields(StringBuilder sb, string className, List<(string name, int value, string displayName)> fields)
     {
-        sb.AppendLine($"        private static readonly Dictionary<int, {className}> _byId = new Dictionary<int, {className}>()");
+        sb.AppendLine($"        private static readonly Dictionary<int, {className}> _byValue = new Dictionary<int, {className}>()");
         sb.AppendLine("        {");
         foreach (var field in fields)
         {
-            sb.AppendLine($"            [{field.id}] = {field.name},");
+            sb.AppendLine($"            [{field.value}] = {field.name},");
         }
         sb.AppendLine("        };");
         sb.AppendLine();
@@ -184,25 +197,25 @@ public class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine();
     }
 
-    private static void GenerateGetAllMethod(StringBuilder sb, string className, List<(string name, int id, string displayName)> fields)
+    private static void GenerateGetAllMethod(StringBuilder sb, string className, List<(string name, int value, string displayName)> fields)
     {
         sb.AppendLine("        /// <summary>");
-        sb.AppendLine($"        /// Gets all values of {className} ordered by ID.");
+        sb.AppendLine($"        /// Gets all values of {className} ordered by value.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static IReadOnlyCollection<{className}> GetAll() => _byId.Values;");
+        sb.AppendLine($"        public static IReadOnlyCollection<{className}> GetAll() => _byValue.Values;");
         sb.AppendLine();
     }
 
-    private static void GenerateFromValueMethod(StringBuilder sb, string className, List<(string name, int id, string displayName)> fields)
+    private static void GenerateFromValueMethod(StringBuilder sb, string className, List<(string name, int value, string displayName)> fields)
     {
         sb.AppendLine("        /// <summary>");
-        sb.AppendLine($"        /// Gets the {className} instance from its ID value.");
+        sb.AppendLine($"        /// Gets the {className} instance from its value.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static {className} FromValue(int id)");
+        sb.AppendLine($"        public static {className} FromValue(int value)");
         sb.AppendLine("        {");
-        sb.AppendLine("            if (_byId.TryGetValue(id, out var result))");
+        sb.AppendLine("            if (_byValue.TryGetValue(value, out var result))");
         sb.AppendLine("                return result;");
-        sb.AppendLine($"            throw new InvalidOperationException($\"No {className} with Id {{id}} found.\");");
+        sb.AppendLine($"            throw new InvalidOperationException($\"No {className} with value {{value}} found.\");");
         sb.AppendLine("        }");
         sb.AppendLine();
     }
@@ -224,11 +237,11 @@ public class EnumerationGenerator : IIncrementalGenerator
     private static void GenerateTryFromValueMethod(StringBuilder sb, string className)
     {
         sb.AppendLine("        /// <summary>");
-        sb.AppendLine($"        /// Tries to get the {className} instance from its ID value.");
+        sb.AppendLine($"        /// Tries to get the {className} instance from its value.");
         sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        public static bool TryFromValue(int id, out {className}? result)");
+        sb.AppendLine($"        public static bool TryFromValue(int value, out {className}? result)");
         sb.AppendLine("        {");
-        sb.AppendLine("            return _byId.TryGetValue(id, out result);");
+        sb.AppendLine("            return _byValue.TryGetValue(value, out result);");
         sb.AppendLine("        }");
         sb.AppendLine();
     }
@@ -253,9 +266,9 @@ public class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    {");
         sb.AppendLine($"        public override {className}? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)");
         sb.AppendLine("        {");
-        sb.AppendLine("            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))");
+        sb.AppendLine("            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var value))");
         sb.AppendLine("            {");
-        sb.AppendLine($"                return {className}.TryFromValue(id, out var result) ? result : null;");
+        sb.AppendLine($"                return {className}.TryFromValue(value, out var result) ? result : null;");
         sb.AppendLine("            }");
         sb.AppendLine("            if (reader.TokenType == System.Text.Json.JsonTokenType.String)");
         sb.AppendLine("            {");
@@ -267,7 +280,7 @@ public class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine($"        public override void Write(System.Text.Json.Utf8JsonWriter writer, {className} value, System.Text.Json.JsonSerializerOptions options)");
         sb.AppendLine("        {");
-        sb.AppendLine("            writer.WriteNumberValue(value.Id);");
+        sb.AppendLine("            writer.WriteNumberValue(value.Value);");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("#endif");
@@ -280,7 +293,7 @@ public class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine($"    public class {className}ValueConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<{className}, int>");
         sb.AppendLine("    {");
         sb.AppendLine($"        public {className}ValueConverter() : base(");
-        sb.AppendLine("            v => v.Id,");
+        sb.AppendLine("            v => v.Value,");
         sb.AppendLine($"            v => {className}.FromValue(v))");
         sb.AppendLine("        {");
         sb.AppendLine("        }");
@@ -288,12 +301,12 @@ public class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("#endif");
     }
 
-    private static List<(string name, int id, string displayName)>? GetEnumerationFieldsWithDiagnostics(
+    private static List<(string name, int value, string displayName)>? GetEnumerationFieldsWithDiagnostics(
         INamedTypeSymbol classSymbol, 
         SourceProductionContext context)
     {
-        var fields = new List<(string name, int id, string displayName, Location location)>();
-        var idMap = new Dictionary<int, (string fieldName, Location location)>();
+        var fields = new List<(string name, int value, string displayName, Location location)>();
+        var valueMap = new Dictionary<int, (string fieldName, Location location)>();
         var nameMap = new Dictionary<string, (string fieldName, Location location)>();
         var hasErrors = false;
         
@@ -316,32 +329,32 @@ public class EnumerationGenerator : IIncrementalGenerator
 
                     if (creation?.ArgumentList?.Arguments.Count >= 2)
                     {
-                        var idArg = creation.ArgumentList.Arguments[0].Expression;
+                        var valueArg = creation.ArgumentList.Arguments[0].Expression;
                         var nameArg = creation.ArgumentList.Arguments[1].Expression;
                         
-                        if (idArg is LiteralExpressionSyntax idLiteral && idLiteral.Token.Value is int id &&
+                        if (valueArg is LiteralExpressionSyntax valueLiteral && valueLiteral.Token.Value is int value &&
                             nameArg is LiteralExpressionSyntax nameLiteral && nameLiteral.Token.Value is string name)
                         {
                         var location = declarator.GetLocation();
                         
-                        // Check for duplicate ID
-                        if (idMap.TryGetValue(id, out var existingId))
+                        // Check for duplicate value
+                        if (valueMap.TryGetValue(value, out var existingValue))
                         {
                             context.ReportDiagnostic(Diagnostic.Create(
-                                DuplicateIdError,
+                                DuplicateValueError,
                                 location,
                                 classSymbol.Name,
-                                id));
+                                value));
                             context.ReportDiagnostic(Diagnostic.Create(
-                                DuplicateIdError,
-                                existingId.location,
+                                DuplicateValueError,
+                                existingValue.location,
                                 classSymbol.Name,
-                                id));
+                                value));
                             hasErrors = true;
                         }
                         else
                         {
-                            idMap[id] = (field.Name, location);
+                            valueMap[value] = (field.Name, location);
                         }
                         
                         // Check for duplicate name
@@ -364,7 +377,7 @@ public class EnumerationGenerator : IIncrementalGenerator
                             nameMap[name] = (field.Name, location);
                         }
                         
-                        fields.Add((field.Name, id, name, location));
+                        fields.Add((field.Name, value, name, location));
                         }
                     }
                 }
@@ -374,16 +387,7 @@ public class EnumerationGenerator : IIncrementalGenerator
         if (hasErrors)
             return null;
             
-        return fields.OrderBy(f => f.id).Select(f => (f.name, f.id, f.displayName)).ToList();
+        return fields.OrderBy(f => f.value).Select(f => (f.name, f.value, f.displayName)).ToList();
     }
 
-    private static bool GetAttributeValue(AttributeData attributeData, string propertyName, bool defaultValue)
-    {
-        var namedArgument = attributeData.NamedArguments.FirstOrDefault(na => na.Key == propertyName);
-        if (namedArgument.Value.Value != null)
-        {
-            return (bool)namedArgument.Value.Value;
-        }
-        return defaultValue;
-    }
 }

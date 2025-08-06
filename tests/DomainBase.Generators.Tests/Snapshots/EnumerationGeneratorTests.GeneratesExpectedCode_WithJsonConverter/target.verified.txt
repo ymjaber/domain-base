@@ -10,7 +10,7 @@ namespace TestNamespace
 {
     partial class PaymentMethod
     {
-        private static readonly Dictionary<int, PaymentMethod> _byId = new Dictionary<int, PaymentMethod>()
+        private static readonly Dictionary<int, PaymentMethod> _byValue = new Dictionary<int, PaymentMethod>()
         {
             [1] = CreditCard,
             [2] = DebitCard,
@@ -23,18 +23,18 @@ namespace TestNamespace
         };
 
         /// <summary>
-        /// Gets all values of PaymentMethod ordered by ID.
+        /// Gets all values of PaymentMethod ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<PaymentMethod> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<PaymentMethod> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the PaymentMethod instance from its ID value.
+        /// Gets the PaymentMethod instance from its value.
         /// </summary>
-        public static PaymentMethod FromValue(int id)
+        public static PaymentMethod FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No PaymentMethod with Id {id} found.");
+            throw new InvalidOperationException($"No PaymentMethod with value {value} found.");
         }
 
         /// <summary>
@@ -48,11 +48,11 @@ namespace TestNamespace
         }
 
         /// <summary>
-        /// Tries to get the PaymentMethod instance from its ID value.
+        /// Tries to get the PaymentMethod instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out PaymentMethod? result)
+        public static bool TryFromValue(int value, out PaymentMethod? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -70,9 +70,9 @@ namespace TestNamespace
     {
         public override PaymentMethod? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
         {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
+            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var value))
             {
-                return PaymentMethod.TryFromValue(id, out var result) ? result : null;
+                return PaymentMethod.TryFromValue(value, out var result) ? result : null;
             }
             if (reader.TokenType == System.Text.Json.JsonTokenType.String)
             {
@@ -84,7 +84,7 @@ namespace TestNamespace
 
         public override void Write(System.Text.Json.Utf8JsonWriter writer, PaymentMethod value, System.Text.Json.JsonSerializerOptions options)
         {
-            writer.WriteNumberValue(value.Id);
+            writer.WriteNumberValue(value.Value);
         }
     }
 #endif

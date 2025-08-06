@@ -14,14 +14,13 @@ public class EnumerationGeneratorDiagnosticTests
 
             namespace TestNamespace;
 
-            [Enumeration]
             public partial class Status : Enumeration
             {
                 public static readonly Status Active = new(1, "Active");
                 public static readonly Status Inactive = new({|DBENUM001:1|}, "Inactive");
                 public static readonly Status Pending = new(2, "Pending");
 
-                public Status(int id, string name) : base(id, name) { }
+                public Status(int value, string name) : base(value, name) { }
             }
             """;
 
@@ -36,14 +35,13 @@ public class EnumerationGeneratorDiagnosticTests
 
             namespace TestNamespace;
 
-            [Enumeration]
             public partial class Status : Enumeration
             {
                 public static readonly Status First = new(1, "Active");
                 public static readonly Status Second = new(2, {|DBENUM002:"Active"|});
                 public static readonly Status Third = new(3, "Pending");
 
-                public Status(int id, string name) : base(id, name) { }
+                public Status(int value, string name) : base(value, name) { }
             }
             """;
 
@@ -58,7 +56,6 @@ public class EnumerationGeneratorDiagnosticTests
 
             namespace TestNamespace;
 
-            [Enumeration]
             public partial class Status : Enumeration
             {
                 public static readonly Status First = new(1, "Active");
@@ -66,7 +63,7 @@ public class EnumerationGeneratorDiagnosticTests
                 public static readonly Status Third = new({|DBENUM001:1|}, "Pending");
                 public static readonly Status Fourth = new(2, {|DBENUM002:"Active"|});
 
-                public Status(int id, string name) : base(id, name) { }
+                public Status(int value, string name) : base(value, name) { }
             }
             """;
 
@@ -81,14 +78,13 @@ public class EnumerationGeneratorDiagnosticTests
 
             namespace TestNamespace;
 
-            [Enumeration]
             public partial class Status : Enumeration
             {
                 public static readonly Status Active = new(1, "Active");
                 public static readonly Status Inactive = new(2, "Inactive");
                 public static readonly Status Pending = new(3, "Pending");
 
-                public Status(int id, string name) : base(id, name) { }
+                public Status(int value, string name) : base(value, name) { }
             }
             """;
 
@@ -103,7 +99,6 @@ public class EnumerationGeneratorDiagnosticTests
 
             namespace TestNamespace;
 
-            [Enumeration]
             public partial class Status : Enumeration
             {
                 private static int counter = 1;
@@ -112,7 +107,7 @@ public class EnumerationGeneratorDiagnosticTests
                 public static readonly Status Inactive = new(counter++, GetName());
                 public static readonly Status Pending = new(3, "Pending");
 
-                public Status(int id, string name) : base(id, name) { }
+                public Status(int value, string name) : base(value, name) { }
                 
                 private static string GetName() => "Inactive";
             }

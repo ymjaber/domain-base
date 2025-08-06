@@ -10,7 +10,7 @@ namespace TestNamespace
 {
     partial class AbstractStatus
     {
-        private static readonly Dictionary<int, AbstractStatus> _byId = new Dictionary<int, AbstractStatus>()
+        private static readonly Dictionary<int, AbstractStatus> _byValue = new Dictionary<int, AbstractStatus>()
         {
             [1] = Active,
         };
@@ -21,18 +21,18 @@ namespace TestNamespace
         };
 
         /// <summary>
-        /// Gets all values of AbstractStatus ordered by ID.
+        /// Gets all values of AbstractStatus ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<AbstractStatus> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<AbstractStatus> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the AbstractStatus instance from its ID value.
+        /// Gets the AbstractStatus instance from its value.
         /// </summary>
-        public static AbstractStatus FromValue(int id)
+        public static AbstractStatus FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No AbstractStatus with Id {id} found.");
+            throw new InvalidOperationException($"No AbstractStatus with value {value} found.");
         }
 
         /// <summary>
@@ -46,11 +46,11 @@ namespace TestNamespace
         }
 
         /// <summary>
-        /// Tries to get the AbstractStatus instance from its ID value.
+        /// Tries to get the AbstractStatus instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out AbstractStatus? result)
+        public static bool TryFromValue(int value, out AbstractStatus? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -62,30 +62,6 @@ namespace TestNamespace
         }
 
     }
-
-#if NET6_0_OR_GREATER
-    public class AbstractStatusJsonConverter : System.Text.Json.Serialization.JsonConverter<AbstractStatus>
-    {
-        public override AbstractStatus? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
-        {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
-            {
-                return AbstractStatus.TryFromValue(id, out var result) ? result : null;
-            }
-            if (reader.TokenType == System.Text.Json.JsonTokenType.String)
-            {
-                var name = reader.GetString();
-                return name != null && AbstractStatus.TryFromName(name, out var result) ? result : null;
-            }
-            return null;
-        }
-
-        public override void Write(System.Text.Json.Utf8JsonWriter writer, AbstractStatus value, System.Text.Json.JsonSerializerOptions options)
-        {
-            writer.WriteNumberValue(value.Id);
-        }
-    }
-#endif
 }
 
     }

@@ -1,0 +1,20 @@
+[
+  {
+    Id: DBVO007,
+    Severity: Error,
+    Message: The property 'Name' has equality attribute 'IncludeInEqualityAttribute' but the containing class 'Product' does not have the [ValueObject] attribute,
+    Location: (8,6)
+  },
+  {
+    Id: DBVO007,
+    Severity: Error,
+    Message: The property 'Price' has equality attribute 'CustomEqualityAttribute' but the containing class 'Product' does not have the [ValueObject] attribute,
+    Location: (11,6)
+  },
+  {
+    Id: DBVO007,
+    Severity: Error,
+    Message: The property 'Tags' has equality attribute 'SequenceEqualityAttribute' but the containing class 'Product' does not have the [ValueObject] attribute,
+    Location: (14,6)
+  }
+]

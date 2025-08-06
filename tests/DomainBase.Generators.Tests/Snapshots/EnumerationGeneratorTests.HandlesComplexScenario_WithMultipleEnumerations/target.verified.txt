@@ -1,4 +1,12 @@
 ﻿{
+  Diagnostics: [
+    {
+      Id: DBENUM003,
+      Severity: Error,
+      Message: The enumeration 'Status3' must be declared as a partial class to enable source generation,
+      Location: (19,14)
+    }
+  ],
   GeneratedSources: [
     {
       HintName: Status1.g.cs,
@@ -10,7 +18,7 @@ namespace TestNamespace
 {
     partial class Status1
     {
-        private static readonly Dictionary<int, Status1> _byId = new Dictionary<int, Status1>()
+        private static readonly Dictionary<int, Status1> _byValue = new Dictionary<int, Status1>()
         {
             [1] = Active,
         };
@@ -21,18 +29,18 @@ namespace TestNamespace
         };
 
         /// <summary>
-        /// Gets all values of Status1 ordered by ID.
+        /// Gets all values of Status1 ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<Status1> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<Status1> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the Status1 instance from its ID value.
+        /// Gets the Status1 instance from its value.
         /// </summary>
-        public static Status1 FromValue(int id)
+        public static Status1 FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No Status1 with Id {id} found.");
+            throw new InvalidOperationException($"No Status1 with value {value} found.");
         }
 
         /// <summary>
@@ -46,11 +54,11 @@ namespace TestNamespace
         }
 
         /// <summary>
-        /// Tries to get the Status1 instance from its ID value.
+        /// Tries to get the Status1 instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out Status1? result)
+        public static bool TryFromValue(int value, out Status1? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -62,30 +70,6 @@ namespace TestNamespace
         }
 
     }
-
-#if NET6_0_OR_GREATER
-    public class Status1JsonConverter : System.Text.Json.Serialization.JsonConverter<Status1>
-    {
-        public override Status1? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
-        {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
-            {
-                return Status1.TryFromValue(id, out var result) ? result : null;
-            }
-            if (reader.TokenType == System.Text.Json.JsonTokenType.String)
-            {
-                var name = reader.GetString();
-                return name != null && Status1.TryFromName(name, out var result) ? result : null;
-            }
-            return null;
-        }
-
-        public override void Write(System.Text.Json.Utf8JsonWriter writer, Status1 value, System.Text.Json.JsonSerializerOptions options)
-        {
-            writer.WriteNumberValue(value.Id);
-        }
-    }
-#endif
 }
 
     },
@@ -99,7 +83,7 @@ namespace TestNamespace
 {
     partial class Status2
     {
-        private static readonly Dictionary<int, Status2> _byId = new Dictionary<int, Status2>()
+        private static readonly Dictionary<int, Status2> _byValue = new Dictionary<int, Status2>()
         {
             [1] = Pending,
         };
@@ -110,18 +94,18 @@ namespace TestNamespace
         };
 
         /// <summary>
-        /// Gets all values of Status2 ordered by ID.
+        /// Gets all values of Status2 ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<Status2> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<Status2> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the Status2 instance from its ID value.
+        /// Gets the Status2 instance from its value.
         /// </summary>
-        public static Status2 FromValue(int id)
+        public static Status2 FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No Status2 with Id {id} found.");
+            throw new InvalidOperationException($"No Status2 with value {value} found.");
         }
 
         /// <summary>
@@ -135,11 +119,11 @@ namespace TestNamespace
         }
 
         /// <summary>
-        /// Tries to get the Status2 instance from its ID value.
+        /// Tries to get the Status2 instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out Status2? result)
+        public static bool TryFromValue(int value, out Status2? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -157,9 +141,9 @@ namespace TestNamespace
     {
         public override Status2? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
         {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
+            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var value))
             {
-                return Status2.TryFromValue(id, out var result) ? result : null;
+                return Status2.TryFromValue(value, out var result) ? result : null;
             }
             if (reader.TokenType == System.Text.Json.JsonTokenType.String)
             {
@@ -171,7 +155,7 @@ namespace TestNamespace
 
         public override void Write(System.Text.Json.Utf8JsonWriter writer, Status2 value, System.Text.Json.JsonSerializerOptions options)
         {
-            writer.WriteNumberValue(value.Id);
+            writer.WriteNumberValue(value.Value);
         }
     }
 #endif

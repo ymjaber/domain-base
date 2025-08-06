@@ -10,7 +10,7 @@ namespace <global namespace>
 {
     partial class GlobalStatus
     {
-        private static readonly Dictionary<int, GlobalStatus> _byId = new Dictionary<int, GlobalStatus>()
+        private static readonly Dictionary<int, GlobalStatus> _byValue = new Dictionary<int, GlobalStatus>()
         {
             [1] = Active,
             [2] = Inactive,
@@ -23,18 +23,18 @@ namespace <global namespace>
         };
 
         /// <summary>
-        /// Gets all values of GlobalStatus ordered by ID.
+        /// Gets all values of GlobalStatus ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<GlobalStatus> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<GlobalStatus> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the GlobalStatus instance from its ID value.
+        /// Gets the GlobalStatus instance from its value.
         /// </summary>
-        public static GlobalStatus FromValue(int id)
+        public static GlobalStatus FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No GlobalStatus with Id {id} found.");
+            throw new InvalidOperationException($"No GlobalStatus with value {value} found.");
         }
 
         /// <summary>
@@ -48,11 +48,11 @@ namespace <global namespace>
         }
 
         /// <summary>
-        /// Tries to get the GlobalStatus instance from its ID value.
+        /// Tries to get the GlobalStatus instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out GlobalStatus? result)
+        public static bool TryFromValue(int value, out GlobalStatus? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -64,30 +64,6 @@ namespace <global namespace>
         }
 
     }
-
-#if NET6_0_OR_GREATER
-    public class GlobalStatusJsonConverter : System.Text.Json.Serialization.JsonConverter<GlobalStatus>
-    {
-        public override GlobalStatus? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
-        {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
-            {
-                return GlobalStatus.TryFromValue(id, out var result) ? result : null;
-            }
-            if (reader.TokenType == System.Text.Json.JsonTokenType.String)
-            {
-                var name = reader.GetString();
-                return name != null && GlobalStatus.TryFromName(name, out var result) ? result : null;
-            }
-            return null;
-        }
-
-        public override void Write(System.Text.Json.Utf8JsonWriter writer, GlobalStatus value, System.Text.Json.JsonSerializerOptions options)
-        {
-            writer.WriteNumberValue(value.Id);
-        }
-    }
-#endif
 }
 
     }

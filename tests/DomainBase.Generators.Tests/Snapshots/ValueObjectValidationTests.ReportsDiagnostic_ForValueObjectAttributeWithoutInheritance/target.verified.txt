@@ -1,0 +1,8 @@
+[
+  {
+    Id: DBVO008,
+    Severity: Error,
+    Message: The class 'Product' has [ValueObject] attribute but does not inherit from ValueObject<T>,
+    Location: (5,2)
+  }
+]

@@ -1,0 +1,11 @@
+{
+  Diagnostics: [
+    {
+      Id: DBVO007,
+      Severity: Error,
+      Message: The property 'Street' has equality attribute 'IncludeInEqualityAttribute' but the containing class 'Address' does not have the [ValueObject] attribute,
+      Location: (8,6)
+    }
+  ],
+  GeneratedSources: []
+}

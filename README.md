@@ -21,7 +21,7 @@ DomainBase solves these problems by providing battle-tested DDD patterns that ma
 
 - **🎯 Entity Base Classes** - Identity-based equality for domain objects
 - **🏛️ Aggregate Roots** - Consistency boundaries with domain event support
-- **💎 Value Objects** - Immutable objects with value-based equality
+- **💎 Value Objects** - Immutable objects with value-based equality and source generation
 - **📢 Domain Events** - Capture important business moments
 - **🔍 Specifications** - Composable query logic with AND/OR/NOT operations
 - **🎨 Type-Safe Enumerations** - Smart enums with behavior and source generation
@@ -89,6 +89,10 @@ Console.WriteLine(customer1 == customer2); // True
 
 ### Value Object - Immutable Values
 
+DomainBase provides two ways to create value objects:
+
+#### Traditional Approach (Manual Implementation)
+
 ```csharp
 using DomainBase;
 
@@ -119,6 +123,66 @@ var email1 = new Email("john@example.com");
 var email2 = new Email("JOHN@EXAMPLE.COM");
 Console.WriteLine(email1 == email2); // True (case-insensitive)
 ```
+
+#### Source Generator Approach (New!)
+
+```csharp
+using DomainBase;
+
+// Define a value object with source generation
+[ValueObject]
+public partial class Address : ValueObject<Address>
+{
+    [IncludeInEquality(Priority = 10)]
+    public string Street { get; init; }
+    
+    [IncludeInEquality(Priority = 5)]
+    public string City { get; init; }
+    
+    [IgnoreEquality] // Explicitly ignored in equality checks
+    public DateTime CreatedAt { get; init; }
+}
+
+// Custom equality for case-insensitive email
+[ValueObject]
+public partial class Email : ValueObject<Email>
+{
+    [CustomEquality]
+    public string Value { get; init; }
+    
+    // Define custom equality logic
+    partial void CustomEquals_Value(string? value, string? otherValue, ref bool result)
+    {
+        result = string.Equals(value, otherValue, StringComparison.OrdinalIgnoreCase);
+    }
+    
+    partial void CustomHashCode_Value(string? value, ref HashCode hashCode)
+    {
+        hashCode.Add(value?.ToUpperInvariant());
+    }
+}
+
+// Sequence equality for collections
+[ValueObject]
+public partial class ShoppingCart : ValueObject<ShoppingCart>
+{
+    [IncludeInEquality]
+    public string CartId { get; init; }
+    
+    [SequenceEquality(OrderMatters = false)] // Order doesn't matter
+    public List<string> ItemIds { get; init; } = new();
+    
+    [SequenceEquality(OrderMatters = true)] // Order matters
+    public List<decimal> PriceHistory { get; init; } = new();
+}
+```
+
+The source generator approach provides:
+- **Automatic equality implementation** - No need to implement GetEqualityComponents
+- **Priority-based comparison** - Control the order of equality checks for performance
+- **Custom equality logic** - Override comparison for specific properties
+- **Sequence equality** - Built-in support for collection comparisons
+- **Compile-time safety** - Analyzer warnings for missing attributes
 
 ### Aggregate Root - Consistency Boundary
 

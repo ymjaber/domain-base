@@ -10,7 +10,7 @@ namespace TestNamespace
 {
     partial class OrderStatus
     {
-        private static readonly Dictionary<int, OrderStatus> _byId = new Dictionary<int, OrderStatus>()
+        private static readonly Dictionary<int, OrderStatus> _byValue = new Dictionary<int, OrderStatus>()
         {
             [1] = Submitted,
             [2] = Approved,
@@ -25,18 +25,18 @@ namespace TestNamespace
         };
 
         /// <summary>
-        /// Gets all values of OrderStatus ordered by ID.
+        /// Gets all values of OrderStatus ordered by value.
         /// </summary>
-        public static IReadOnlyCollection<OrderStatus> GetAll() => _byId.Values;
+        public static IReadOnlyCollection<OrderStatus> GetAll() => _byValue.Values;
 
         /// <summary>
-        /// Gets the OrderStatus instance from its ID value.
+        /// Gets the OrderStatus instance from its value.
         /// </summary>
-        public static OrderStatus FromValue(int id)
+        public static OrderStatus FromValue(int value)
         {
-            if (_byId.TryGetValue(id, out var result))
+            if (_byValue.TryGetValue(value, out var result))
                 return result;
-            throw new InvalidOperationException($"No OrderStatus with Id {id} found.");
+            throw new InvalidOperationException($"No OrderStatus with value {value} found.");
         }
 
         /// <summary>
@@ -50,11 +50,11 @@ namespace TestNamespace
         }
 
         /// <summary>
-        /// Tries to get the OrderStatus instance from its ID value.
+        /// Tries to get the OrderStatus instance from its value.
         /// </summary>
-        public static bool TryFromValue(int id, out OrderStatus? result)
+        public static bool TryFromValue(int value, out OrderStatus? result)
         {
-            return _byId.TryGetValue(id, out result);
+            return _byValue.TryGetValue(value, out result);
         }
 
         /// <summary>
@@ -66,30 +66,6 @@ namespace TestNamespace
         }
 
     }
-
-#if NET6_0_OR_GREATER
-    public class OrderStatusJsonConverter : System.Text.Json.Serialization.JsonConverter<OrderStatus>
-    {
-        public override OrderStatus? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
-        {
-            if (reader.TokenType == System.Text.Json.JsonTokenType.Number && reader.TryGetInt32(out var id))
-            {
-                return OrderStatus.TryFromValue(id, out var result) ? result : null;
-            }
-            if (reader.TokenType == System.Text.Json.JsonTokenType.String)
-            {
-                var name = reader.GetString();
-                return name != null && OrderStatus.TryFromName(name, out var result) ? result : null;
-            }
-            return null;
-        }
-
-        public override void Write(System.Text.Json.Utf8JsonWriter writer, OrderStatus value, System.Text.Json.JsonSerializerOptions options)
-        {
-            writer.WriteNumberValue(value.Id);
-        }
-    }
-#endif
 }
 
     }

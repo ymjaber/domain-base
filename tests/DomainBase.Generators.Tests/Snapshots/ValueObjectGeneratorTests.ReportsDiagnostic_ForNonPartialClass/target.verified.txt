@@ -1,0 +1,11 @@
+﻿{
+  Diagnostics: [
+    {
+      Id: DBVO001,
+      Severity: Error,
+      Message: The value object 'Address' must be declared as a partial class to enable source generation,
+      Location: (6,14)
+    }
+  ],
+  GeneratedSources: []
+}
