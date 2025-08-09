@@ -11,73 +11,40 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace DomainBase.Generators;
 
+/// <summary>
+/// Source generator that augments value object classes marked with <c>[DomainBase.ValueObject]</c> and inheriting
+/// from <c>DomainBase.ValueObject&lt;TSelf&gt;</c> with optimized equality and hash code implementations, sequence helpers,
+/// and diagnostics for missing/invalid equality attributes and conventions.
+/// </summary>
 [Generator]
 public class ValueObjectGenerator : IIncrementalGenerator
 {
-    private static readonly DiagnosticDescriptor NonPartialClassError = new(
-        id: "DBVO001",
-        title: "ValueObject class must be partial",
-        messageFormat: "The value object '{0}' must be declared as a partial class to enable source generation",
-        category: "Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    // No diagnostics here; authoring rules are enforced by analyzers
 
-    private static readonly DiagnosticDescriptor MissingEqualityAttributeWarning = new(
-        id: "DBVO002",
-        title: "Property or field missing equality attribute",
-        messageFormat: "The {0} '{1}' in value object '{2}' should have an equality attribute",
-        category: "Usage",
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true);
+    
 
-    private static readonly DiagnosticDescriptor MissingCustomEqualsError = new(
-        id: "DBVO003",
-        title: "Missing custom equality method",
-        messageFormat: "The property '{0}' has [CustomEquality] but is missing the required static method 'Equals_{1}' with signature: private static void Equals_{1}(in T value, in T otherValue, out bool result)",
-        category: "Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    
 
-    private static readonly DiagnosticDescriptor MissingCustomHashCodeError = new(
-        id: "DBVO004",
-        title: "Missing custom hash code method",
-        messageFormat: "The property '{0}' has [CustomEquality] but is missing the required static method 'GetHashCode_{1}'",
-        category: "Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    
 
-    private static readonly DiagnosticDescriptor SequenceOnNonEnumerableInfo = new(
-        id: "DBVO006",
-        title: "SequenceEquality on non-sequence type",
-        messageFormat: "The {0} '{1}' has [SequenceEquality] but does not implement IEnumerable. Consider using [IncludeInEquality] instead.",
-        category: "Usage",
-        DiagnosticSeverity.Info,
-        isEnabledByDefault: true);
+    
 
-    private static readonly DiagnosticDescriptor EqualityAttributeOnNonValueObjectError = new(
-        id: "DBVO007",
-        title: "Equality attribute on non-ValueObject class",
-        messageFormat: "The {0} '{1}' has equality attribute '{2}' but the containing class '{3}' does not have the [ValueObject] attribute",
-        category: "Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    
 
-    private static readonly DiagnosticDescriptor ValueObjectAttributeWithoutInheritanceError = new(
-        id: "DBVO008",
-        title: "ValueObject attribute without inheritance",
-        messageFormat: "The class '{0}' has [ValueObject] attribute but does not inherit from ValueObject<T>",
-        category: "Usage",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    
+
+    
         
-    private static readonly DiagnosticDescriptor DuplicateMethodNamesError = new(
-        id: "DBVO009",
-        title: "Duplicate method names after cleaning",
-        messageFormat: "The members '{0}' and '{1}' would generate the same method names after removing prefixes. Consider renaming one of them.",
-        category: "Naming",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    
 
+    
+
+    
+
+    /// <summary>
+    /// Configures the incremental generation and validation pipelines.
+    /// </summary>
+    /// <param name="context">The generator initialization context.</param>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Main generation pipeline
@@ -115,9 +82,15 @@ public class ValueObjectGenerator : IIncrementalGenerator
             static (spc, source) => ReportValueObjectWithoutInheritance(spc, source.Left, source.Right));
     }
 
+    /// <summary>
+    /// Determines whether the syntax node is a candidate for generation (class with attributes and a base list).
+    /// </summary>
     private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
         => node is ClassDeclarationSyntax c && c.AttributeLists.Count > 0 && c.BaseList != null;
 
+    /// <summary>
+    /// Verifies the semantic target has <c>[ValueObject]</c> and inherits from <c>ValueObject&lt;TSelf&gt;</c>.
+    /// </summary>
     private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
     {
         var classDeclarationSyntax = (ClassDeclarationSyntax)context.Node;
@@ -147,6 +120,9 @@ public class ValueObjectGenerator : IIncrementalGenerator
         return null;
     }
 
+    /// <summary>
+    /// Emits generated members and diagnostics for the discovered value object classes.
+    /// </summary>
     private static void Execute(Compilation compilation, ImmutableArray<ClassDeclarationSyntax?> classes, SourceProductionContext context)
     {
         if (classes.IsDefaultOrEmpty)
@@ -171,26 +147,27 @@ public class ValueObjectGenerator : IIncrementalGenerator
             if (classSymbol == null)
                 continue;
 
-            // Check if class is partial
+            // Analyzer handles partial class validation
             if (!classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    NonPartialClassError,
-                    classDeclaration.Identifier.GetLocation(),
-                    classSymbol.Name));
                 continue;
-            }
 
-            var members = AnalyzeMembers(classSymbol, context);
+            var members = AnalyzeMembers(classSymbol);
             if (members == null)
-                continue; // Errors were reported
+                continue;
                 
-            var source = GenerateValueObjectExtensions(classSymbol, members);
+            var voJsonAttr = classSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "DomainBase.GenerateVoJsonConverterAttribute");
+            var generateJsonConverter = voJsonAttr != null;
+            var efConverterAttr = classSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "DomainBase.GenerateEfValueConverterAttribute");
+            var generateEfValueConverter = efConverterAttr != null;
+            var typeConverterAttr = classSymbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "DomainBase.GenerateTypeConverterAttribute");
+            var generateTypeConverter = typeConverterAttr != null;
+
+            var source = GenerateValueObjectExtensions(classSymbol, members, generateJsonConverter, generateEfValueConverter, generateTypeConverter);
             context.AddSource($"{classSymbol.Name}.g.cs", SourceText.From(source, Encoding.UTF8));
         }
     }
 
-    private static List<MemberInfo>? AnalyzeMembers(INamedTypeSymbol classSymbol, SourceProductionContext context)
+    private static List<MemberInfo>? AnalyzeMembers(INamedTypeSymbol classSymbol)
     {
         var members = new List<MemberInfo>();
         
@@ -198,16 +175,21 @@ public class ValueObjectGenerator : IIncrementalGenerator
         {
             if (member is IPropertySymbol property && IsAutoProperty(property))
             {
-                var memberInfo = AnalyzeMember(property, property.Type, property.Name, "property", classSymbol, context);
+                var memberInfo = AnalyzeMember(property, property.Type, property.Name, "property", classSymbol);
                 if (memberInfo != null)
                     members.Add(memberInfo);
             }
             else if (member is IFieldSymbol field && !field.IsStatic && !field.IsConst && !field.IsImplicitlyDeclared)
             {
-                var memberInfo = AnalyzeMember(field, field.Type, field.Name, "field", classSymbol, context);
+                // Skip backing fields for properties
+                if (field.AssociatedSymbol is IPropertySymbol)
+                    continue;
+
+                var memberInfo = AnalyzeMember(field, field.Type, field.Name, "field", classSymbol);
                 if (memberInfo != null)
                     members.Add(memberInfo);
             }
+            // no-op for other members
         }
         
         // Sort by priority (descending) then by name for stable ordering
@@ -226,13 +208,8 @@ public class ValueObjectGenerator : IIncrementalGenerator
             var cleanMethodName = GetCleanMethodName(member.Name);
             if (methodNameMap.TryGetValue(cleanMethodName, out var existingMember))
             {
-                // Report error for duplicate
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DuplicateMethodNamesError,
-                    member.Symbol.Locations.FirstOrDefault() ?? Location.None,
-                    existingMember.Name,
-                    member.Name));
-                return null; // Don't generate code if there are duplicates
+                // Analyzer reports duplicate custom method names; skip generation if conflict
+                return null;
             }
             methodNameMap[cleanMethodName] = member;
         }
@@ -246,11 +223,12 @@ public class ValueObjectGenerator : IIncrementalGenerator
                property.GetMethod.DeclaredAccessibility != Accessibility.Private &&
                !property.IsStatic &&
                !property.IsIndexer &&
-               !property.IsAbstract;
+               !property.IsAbstract &&
+               !property.IsWriteOnly;
     }
 
     private static MemberInfo? AnalyzeMember(ISymbol member, ITypeSymbol type, string name, string memberKind, 
-        INamedTypeSymbol classSymbol, SourceProductionContext context)
+        INamedTypeSymbol classSymbol)
     {
         var attributes = member.GetAttributes();
         
@@ -262,21 +240,10 @@ public class ValueObjectGenerator : IIncrementalGenerator
         var attributeCount = new[] { includeAttr, customAttr, sequenceAttr, ignoreAttr }.Count(a => a != null);
         
         if (attributeCount == 0)
-        {
-            context.ReportDiagnostic(Diagnostic.Create(
-                MissingEqualityAttributeWarning,
-                member.Locations.FirstOrDefault() ?? Location.None,
-                memberKind,
-                name,
-                classSymbol.Name));
             return null;
-        }
         
         if (attributeCount > 1)
-        {
-            // Multiple attributes - this is an error but we'll just take the first one
             return null;
-        }
         
         if (ignoreAttr != null)
             return null; // Explicitly ignored
@@ -306,23 +273,7 @@ public class ValueObjectGenerator : IIncrementalGenerator
             var hashCodeMethod = classSymbol.GetMembers($"GetHashCode_{methodSuffix}")
                 .FirstOrDefault(m => m is IMethodSymbol method && method.IsStatic);
             
-            if (equalsMethod == null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    MissingCustomEqualsError,
-                    member.Locations.FirstOrDefault() ?? Location.None,
-                    name,
-                    methodSuffix));
-            }
-            
-            if (hashCodeMethod == null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    MissingCustomHashCodeError,
-                    member.Locations.FirstOrDefault() ?? Location.None,
-                    name,
-                    methodSuffix));
-            }
+            // Analyzer reports missing methods; generator will still emit calls
         }
         else if (sequenceAttr != null)
         {
@@ -331,15 +282,7 @@ public class ValueObjectGenerator : IIncrementalGenerator
             memberInfo.OrderMatters = GetAttributeValue(sequenceAttr, "OrderMatters", true);
             memberInfo.DeepEquality = GetAttributeValue(sequenceAttr, "DeepEquality", true);
             
-            // Check if type implements IEnumerable
-            if (!ImplementsIEnumerable(type))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    SequenceOnNonEnumerableInfo,
-                    member.Locations.FirstOrDefault() ?? Location.None,
-                    memberKind,
-                    name));
-            }
+            // Analyzer validates sequence applicability
         }
         
         return memberInfo;
@@ -367,10 +310,11 @@ public class ValueObjectGenerator : IIncrementalGenerator
         return defaultValue;
     }
 
-    private static string GenerateValueObjectExtensions(INamedTypeSymbol classSymbol, List<MemberInfo> members)
+    private static string GenerateValueObjectExtensions(INamedTypeSymbol classSymbol, List<MemberInfo> members, bool generateJsonConverter, bool generateEfValueConverter, bool generateTypeConverter)
     {
         var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
         var className = classSymbol.Name;
+        var isGlobalNamespace = classSymbol.ContainingNamespace.IsGlobalNamespace;
         
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -378,44 +322,136 @@ public class ValueObjectGenerator : IIncrementalGenerator
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Linq;");
+        if (generateTypeConverter)
+        {
+            sb.AppendLine("using System.ComponentModel;");
+        }
         sb.AppendLine();
-        sb.AppendLine($"namespace {namespaceName}");
-        sb.AppendLine("{");
-        sb.AppendLine($"    partial class {className}");
-        sb.AppendLine("    {");
         
-        GenerateEqualsCore(sb, className, members);
-        GenerateGetHashCodeCore(sb, members);
-        GenerateCustomPartialMethods(sb, members);
+        if (!isGlobalNamespace)
+        {
+            sb.AppendLine($"namespace {namespaceName}");
+            sb.AppendLine("{");
+        }
+        
+        var indent = isGlobalNamespace ? "" : "    ";
+        if (generateTypeConverter)
+        {
+            sb.AppendLine($"{indent}[TypeConverter(typeof({className}TypeConverter))]");
+        }
+        sb.AppendLine($"{indent}partial class {className}");
+        sb.AppendLine($"{indent}{{");
+        
+        GenerateEqualsCore(sb, className, members, indent);
+        GenerateGetHashCodeCore(sb, members, indent);
+        GenerateCustomPartialMethods(sb, members, indent);
         
         if (members.Any(m => m.EqualityKind == EqualityKind.Sequence))
         {
-            GenerateSequenceEqualityHelper(sb);
+            GenerateSequenceEqualityHelper(sb, indent);
+            GenerateSequenceHashCodeHelper(sb, indent);
+            GenerateReferenceEqualityComparerHelper(sb, indent);
         }
         
-        sb.AppendLine("    }");
-        sb.AppendLine("}");
+        sb.AppendLine($"{indent}}}");
+        
+        if (generateJsonConverter)
+        {
+            GenerateVoJsonConverter(sb, namespaceName, className, indent);
+        }
+
+        if (generateEfValueConverter)
+        {
+            GenerateVoEfValueConverter(sb, namespaceName, className, indent);
+        }
+
+        if (generateTypeConverter)
+        {
+            GenerateVoTypeConverter(sb, namespaceName, className, indent);
+        }
+
+        if (!isGlobalNamespace)
+        {
+            sb.AppendLine("}");
+        }
         
         return sb.ToString();
     }
 
-    private static void GenerateEqualsCore(StringBuilder sb, string className, List<MemberInfo> members)
+    private static void GenerateVoJsonConverter(StringBuilder sb, string namespaceName, string className, string indent)
     {
-        sb.AppendLine("        /// <summary>");
-        sb.AppendLine($"        /// Determines whether this {className} is equal to another based on their values.");
-        sb.AppendLine("        /// </summary>");
-        sb.AppendLine($"        protected override bool EqualsCore({className} other)");
-        sb.AppendLine("        {");
+        sb.AppendLine();
+        sb.AppendLine("#if NET6_0_OR_GREATER");
+        sb.AppendLine($"{indent}public class {className}JsonConverter : System.Text.Json.Serialization.JsonConverter<{className}>");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    public override {className}? Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        if (reader.TokenType == System.Text.Json.JsonTokenType.Null) return null;");
+        sb.AppendLine($"{indent}        var underlying = System.Text.Json.JsonSerializer.Deserialize(reader.GetRawText(), typeof(object), options);");
+        sb.AppendLine($"{indent}        return underlying is null ? null : ({className})System.Activator.CreateInstance(typeof({className}), underlying)!;");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}    public override void Write(System.Text.Json.Utf8JsonWriter writer, {className} value, System.Text.Json.JsonSerializerOptions options)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        var prop = typeof({className}).GetProperty(\"Value\");");
+        sb.AppendLine($"{indent}        var underlying = prop!.GetValue(value);");
+        sb.AppendLine($"{indent}        System.Text.Json.JsonSerializer.Serialize(writer, underlying, options);");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}}}");
+        sb.AppendLine("#endif");
+    }
+
+    private static void GenerateVoEfValueConverter(StringBuilder sb, string namespaceName, string className, string indent)
+    {
+        sb.AppendLine();
+        sb.AppendLine("#if NET6_0_OR_GREATER");
+        sb.AppendLine($"{indent}public class {className}ValueConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<{className}, object>");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    public {className}ValueConverter() : base(");
+        sb.AppendLine($"{indent}        v => typeof({className}).GetProperty(\"Value\")!.GetValue(v)!,");
+        sb.AppendLine($"{indent}        o => ({className})System.Activator.CreateInstance(typeof({className}), o)!)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}}}");
+        sb.AppendLine("#endif");
+    }
+
+    private static void GenerateVoTypeConverter(StringBuilder sb, string namespaceName, string className, string indent)
+    {
+        sb.AppendLine();
+        sb.AppendLine($"{indent}public class {className}TypeConverter : System.ComponentModel.TypeConverter");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    public override bool CanConvertFrom(System.ComponentModel.ITypeDescriptorContext? context, Type sourceType)");
+        sb.AppendLine($"{indent}        => sourceType == typeof(string) || base.CanConvertFrom(context, sourceType);");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}    public override object? ConvertFrom(System.ComponentModel.ITypeDescriptorContext? context, System.Globalization.CultureInfo? culture, object value)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        if (value is string s)");
+        sb.AppendLine($"{indent}        {{");
+        sb.AppendLine($"{indent}            return System.Activator.CreateInstance(typeof({className}), s);");
+        sb.AppendLine($"{indent}        }}");
+        sb.AppendLine($"{indent}        return base.ConvertFrom(context, culture, value);");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}}}");
+    }
+
+    private static void GenerateEqualsCore(StringBuilder sb, string className, List<MemberInfo> members, string indent)
+    {
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Determines whether this {className} is equal to another based on their values.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    protected override bool EqualsCore({className} other)");
+        sb.AppendLine($"{indent}    {{");
         
         // Add priority documentation if there are members with different priorities
         var priorityGroups = members.GroupBy(m => m.Priority).OrderByDescending(g => g.Key).ToList();
         if (priorityGroups.Count > 1)
         {
-            sb.AppendLine("            // Properties are compared in priority order (highest to lowest):");
+            sb.AppendLine($"{indent}        // Properties are compared in priority order (highest to lowest):");
             foreach (var group in priorityGroups)
             {
                 var memberNames = string.Join(", ", group.Select(m => m.Name));
-                sb.AppendLine($"            // Priority {group.Key}: {memberNames}");
+                sb.AppendLine($"{indent}        // Priority {group.Key}: {memberNames}");
             }
             sb.AppendLine();
         }
@@ -424,7 +460,7 @@ public class ValueObjectGenerator : IIncrementalGenerator
         var hasCustomEquality = members.Any(m => m.EqualityKind == EqualityKind.Custom);
         if (hasCustomEquality)
         {
-            sb.AppendLine("            bool result;");
+            sb.AppendLine($"{indent}        bool result;");
             sb.AppendLine();
         }
         
@@ -433,63 +469,64 @@ public class ValueObjectGenerator : IIncrementalGenerator
             switch (member.EqualityKind)
             {
                 case EqualityKind.Include:
-                    GenerateSimpleEquality(sb, member);
+                    GenerateSimpleEquality(sb, member, indent);
                     break;
                 case EqualityKind.Custom:
-                    GenerateCustomEquality(sb, member);
+                    GenerateCustomEquality(sb, member, indent);
                     break;
                 case EqualityKind.Sequence:
-                    GenerateSequenceEquality(sb, member);
+                    GenerateSequenceEquality(sb, member, indent);
                     break;
             }
         }
         
-        sb.AppendLine("            return true;");
-        sb.AppendLine("        }");
+        sb.AppendLine($"{indent}        return true;");
+        sb.AppendLine($"{indent}    }}");
         sb.AppendLine();
     }
 
-    private static void GenerateSimpleEquality(StringBuilder sb, MemberInfo member)
+    private static void GenerateSimpleEquality(StringBuilder sb, MemberInfo member, string indent)
     {
         var memberAccess = member.Name;
         var otherAccess = $"other.{member.Name}";
         
         if (member.Type.IsValueType)
         {
-            sb.AppendLine($"            if (!{memberAccess}.Equals({otherAccess})) return false;");
+            sb.AppendLine($"{indent}        if (!{memberAccess}.Equals({otherAccess})) return false;");
         }
         else
         {
-            sb.AppendLine($"            if (!EqualityComparer<{member.Type.ToDisplayString()}>.Default.Equals({memberAccess}, {otherAccess})) return false;");
+            sb.AppendLine($"{indent}        if (!EqualityComparer<{member.Type.ToDisplayString()}>.Default.Equals({memberAccess}, {otherAccess})) return false;");
         }
     }
 
-    private static void GenerateCustomEquality(StringBuilder sb, MemberInfo member)
+    private static void GenerateCustomEquality(StringBuilder sb, MemberInfo member, string indent)
     {
         var methodSuffix = GetCleanMethodName(member.Name);
         // Add priority comment if it's non-zero
         if (member.Priority != 0)
         {
-            sb.AppendLine($"            // Priority {member.Priority}: {member.Name}");
+            sb.AppendLine($"{indent}        // Priority {member.Priority}: {member.Name}");
         }
-        sb.AppendLine($"            Equals_{methodSuffix}({member.Name}, other.{member.Name}, out result);");
-        sb.AppendLine("            if (!result) return false;");
+        sb.AppendLine($"{indent}        Equals_{methodSuffix}({member.Name}, other.{member.Name}, out result);");
+        sb.AppendLine($"{indent}        if (!result) return false;");
     }
 
-    private static void GenerateSequenceEquality(StringBuilder sb, MemberInfo member)
+    private static void GenerateSequenceEquality(StringBuilder sb, MemberInfo member, string indent)
     {
         var orderMatters = member.OrderMatters ? "true" : "false";
-        sb.AppendLine($"            if (!SequenceEquals({member.Name}, other.{member.Name}, {orderMatters})) return false;");
+        var deepEquality = member.DeepEquality ? "true" : "false";
+        sb.AppendLine($"{indent}        if (!SequenceEquals({member.Name}, other.{member.Name}, {orderMatters}, {deepEquality})) return false;");
     }
 
-    private static void GenerateGetHashCodeCore(StringBuilder sb, List<MemberInfo> members)
+    private static void GenerateGetHashCodeCore(StringBuilder sb, List<MemberInfo> members, string indent)
     {
-        sb.AppendLine("        /// <summary>");
-        sb.AppendLine("        /// Returns a hash code for this value object's values.");
-        sb.AppendLine("        /// </summary>");
-        sb.AppendLine("        protected override int GetHashCodeCore()");
-        sb.AppendLine("        {");
-        sb.AppendLine("            var hashCode = new HashCode();");
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Returns a hash code for this value object's values.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    protected override int GetHashCodeCore()");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        var hashCode = new HashCode();");
         sb.AppendLine();
         
         foreach (var member in members)
@@ -497,29 +534,27 @@ public class ValueObjectGenerator : IIncrementalGenerator
             if (member.EqualityKind == EqualityKind.Custom)
             {
                 var methodSuffix = GetCleanMethodName(member.Name);
-                sb.AppendLine($"            GetHashCode_{methodSuffix}({member.Name}, ref hashCode);");
+                sb.AppendLine($"{indent}        GetHashCode_{methodSuffix}({member.Name}, ref hashCode);");
             }
             else if (member.EqualityKind == EqualityKind.Sequence)
             {
-                sb.AppendLine($"            if ({member.Name} != null)");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                foreach (var item in {member.Name})");
-                sb.AppendLine("                    hashCode.Add(item);");
-                sb.AppendLine("            }");
+                var orderMatters = member.OrderMatters ? "true" : "false";
+                var deepEquality = member.DeepEquality ? "true" : "false";
+                sb.AppendLine($"{indent}        AddSequenceHashCode({member.Name}, ref hashCode, {orderMatters}, {deepEquality});");
             }
             else
             {
-                sb.AppendLine($"            hashCode.Add({member.Name});");
+                sb.AppendLine($"{indent}        hashCode.Add({member.Name});");
             }
         }
         
         sb.AppendLine();
-        sb.AppendLine("            return hashCode.ToHashCode();");
-        sb.AppendLine("        }");
+        sb.AppendLine($"{indent}        return hashCode.ToHashCode();");
+        sb.AppendLine($"{indent}    }}");
         sb.AppendLine();
     }
 
-    private static void GenerateCustomPartialMethods(StringBuilder sb, List<MemberInfo> members)
+    private static void GenerateCustomPartialMethods(StringBuilder sb, List<MemberInfo> members, string indent)
     {
         // We no longer generate partial method declarations
         // The user must provide static methods in their code using the code fix
@@ -585,17 +620,58 @@ public class ValueObjectGenerator : IIncrementalGenerator
         return char.ToUpper(cleanName[0]) + (cleanName.Length > 1 ? cleanName.Substring(1) : "");
     }
 
-    private static void GenerateSequenceEqualityHelper(StringBuilder sb)
+    private static void GenerateSequenceEqualityHelper(StringBuilder sb, string indent)
     {
-        sb.AppendLine("        private static bool SequenceEquals<T>(IEnumerable<T>? first, IEnumerable<T>? second, bool orderMatters)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            if (ReferenceEquals(first, second)) return true;");
-        sb.AppendLine("            if (first is null || second is null) return false;");
+        sb.AppendLine($"{indent}    private static bool SequenceEquals<T>(IEnumerable<T>? first, IEnumerable<T>? second, bool orderMatters, bool deepEquality)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        if (ReferenceEquals(first, second)) return true;");
+        sb.AppendLine($"{indent}        if (first is null || second is null) return false;");
         sb.AppendLine();
-        sb.AppendLine("            return orderMatters");
-        sb.AppendLine("                ? first.SequenceEqual(second)");
-        sb.AppendLine("                : first.OrderBy(x => x).SequenceEqual(second.OrderBy(x => x));");
-        sb.AppendLine("        }");
+        sb.AppendLine($"{indent}        var comparer = (!deepEquality && !typeof(T).IsValueType) ? (IEqualityComparer<T>)ReferenceEqualityComparerAdapter<T>.Instance : EqualityComparer<T>.Default;");
+        sb.AppendLine($"{indent}        if (orderMatters)");
+        sb.AppendLine($"{indent}            return first.SequenceEqual(second, comparer);");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}        var counts = new Dictionary<T, int>(comparer);");
+        sb.AppendLine($"{indent}        foreach (var x in first) counts[x] = counts.TryGetValue(x, out var c) ? c + 1 : 1;");
+        sb.AppendLine($"{indent}        foreach (var y in second)");
+        sb.AppendLine($"{indent}        {{");
+        sb.AppendLine($"{indent}            if (!counts.TryGetValue(y, out var c)) return false;");
+        sb.AppendLine($"{indent}            if (c == 1) counts.Remove(y); else counts[y] = c - 1;");
+        sb.AppendLine($"{indent}        }}");
+        sb.AppendLine($"{indent}        return counts.Count == 0;");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+    }
+
+    private static void GenerateSequenceHashCodeHelper(StringBuilder sb, string indent)
+    {
+        sb.AppendLine($"{indent}    private static void AddSequenceHashCode<T>(IEnumerable<T>? source, ref HashCode hashCode, bool orderMatters, bool deepEquality)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        if (source is null) return;");
+        sb.AppendLine($"{indent}        if (orderMatters)");
+        sb.AppendLine($"{indent}        {{");
+        sb.AppendLine($"{indent}            foreach (var item in source) hashCode.Add(item); return;");
+        sb.AppendLine($"{indent}        }}");
+        sb.AppendLine($"{indent}        var comparer = (!deepEquality && !typeof(T).IsValueType) ? (IEqualityComparer<T>)ReferenceEqualityComparerAdapter<T>.Instance : EqualityComparer<T>.Default;");
+        sb.AppendLine($"{indent}        var counts = new Dictionary<T, int>(comparer);");
+        sb.AppendLine($"{indent}        foreach (var x in source) counts[x] = counts.TryGetValue(x, out var c) ? c + 1 : 1;");
+        sb.AppendLine($"{indent}        foreach (var kvp in counts.OrderBy(kvp => comparer.GetHashCode(kvp.Key)))");
+        sb.AppendLine($"{indent}        {{");
+        sb.AppendLine($"{indent}            hashCode.Add(kvp.Value);");
+        sb.AppendLine($"{indent}            hashCode.Add(kvp.Key);");
+        sb.AppendLine($"{indent}        }}");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+    }
+
+    private static void GenerateReferenceEqualityComparerHelper(StringBuilder sb, string indent)
+    {
+        sb.AppendLine($"{indent}    private sealed class ReferenceEqualityComparerAdapter<T> : IEqualityComparer<T>");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        public static readonly ReferenceEqualityComparerAdapter<T> Instance = new();");
+        sb.AppendLine($"{indent}        public bool Equals(T x, T y) => ReferenceEquals(x, y);");
+        sb.AppendLine($"{indent}        public int GetHashCode(T obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj!);");
+        sb.AppendLine($"{indent}    }}");
         sb.AppendLine();
     }
 
@@ -648,13 +724,7 @@ public class ValueObjectGenerator : IIncrementalGenerator
             var semanticModel = compilation.GetSemanticModel(data.Value.Class.SyntaxTree);
             var classSymbol = semanticModel.GetDeclaredSymbol(data.Value.Class);
             
-            if (classSymbol != null)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    ValueObjectAttributeWithoutInheritanceError,
-                    data.Value.Location,
-                    classSymbol.Name));
-            }
+            // Analyzer reports [ValueObject] without proper inheritance
         }
     }
 
@@ -718,14 +788,7 @@ public class ValueObjectGenerator : IIncrementalGenerator
     private static void ValidateEqualityAttributeUsage(SourceProductionContext context, MemberWithEqualityAttribute data)
     {
         var memberKind = data.Member is IPropertySymbol ? "property" : "field";
-        
-        context.ReportDiagnostic(Diagnostic.Create(
-            EqualityAttributeOnNonValueObjectError,
-            data.AttributeLocation,
-            memberKind,
-            data.Member.Name,
-            data.AttributeName,
-            data.ContainingClass.Name));
+        // Analyzer reports equality attributes on non-ValueObject classes
     }
 
     private class MemberInfo

@@ -9,7 +9,7 @@
     {
       Id: DBVO004,
       Severity: Error,
-      Message: The property 'LastName' has [CustomEquality] but is missing the required static method 'GetHashCode_LastName',
+      Message: The property 'LastName' has [CustomEquality] but is missing the required static method 'GetHashCode_LastName' with signature: private static void GetHashCode_LastName(in T value, ref HashCode hashCode),
       Location: (12,19)
     }
   ],

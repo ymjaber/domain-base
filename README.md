@@ -112,10 +112,8 @@ public class Email : ValueObject<Email>
         Value = value.ToLowerInvariant();
     }
 
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Value;
-    }
+    protected override bool EqualsCore(Email other) => Value == other.Value;
+    protected override int GetHashCodeCore() => Value.GetHashCode();
 }
 
 // Value objects are compared by value, not reference
@@ -149,17 +147,12 @@ public partial class Email : ValueObject<Email>
 {
     [CustomEquality]
     public string Value { get; init; }
-    
-    // Define custom equality logic
-    partial void CustomEquals_Value(string? value, string? otherValue, ref bool result)
-    {
-        result = string.Equals(value, otherValue, StringComparison.OrdinalIgnoreCase);
-    }
-    
-    partial void CustomHashCode_Value(string? value, ref HashCode hashCode)
-    {
-        hashCode.Add(value?.ToUpperInvariant());
-    }
+
+    private static void Equals_Value(in string value, in string otherValue, out bool result)
+        => result = string.Equals(value, otherValue, StringComparison.OrdinalIgnoreCase);
+
+    private static void GetHashCode_Value(in string value, ref HashCode hash)
+        => hash.Add(value, StringComparer.OrdinalIgnoreCase);
 }
 
 // Sequence equality for collections
@@ -237,7 +230,7 @@ public record OrderShippedEvent(Guid OrderId) : DomainEvent;
 using DomainBase;
 
 // Define a type-safe enumeration with behavior
-[Enumeration]
+// Mark as partial to enable source-generated helpers
 public partial class OrderStatus : Enumeration
 {
     public static readonly OrderStatus Pending = new(1, "Pending");
@@ -269,7 +262,7 @@ if (status.CanShip())
     // Ship the order
 }
 
-// Source generator provides static methods when using [Enumeration] attribute
+// Source generator provides static lookup/parse methods for partial Enumeration classes
 var allStatuses = OrderStatus.GetAll();
 
 // Parse from value or name
@@ -280,7 +273,7 @@ var pending = OrderStatus.FromName("Pending");
 ### Specifications - Encapsulated Queries
 
 ```csharp
-using DomainBase.Specifications;
+using DomainBase;
 
 // Define reusable specifications
 public class ActiveCustomerSpecification : Specification<Customer>
@@ -304,8 +297,14 @@ public class PremiumCustomerSpecification : Specification<Customer>
 var activePremiumSpec = new ActiveCustomerSpecification()
     .And(new PremiumCustomerSpecification(10000));
 
+public class RecentActivitySpecification : Specification<Customer>
+{
+    public RecentActivitySpecification()
+        : base(c => c.LastActivityDate > DateTime.UtcNow.AddDays(-7)) { }
+}
+
 var activeOrRecentSpec = new ActiveCustomerSpecification()
-    .Or(new Specification<Customer>(c => c.LastActivityDate > DateTime.UtcNow.AddDays(-7)));
+    .Or(new RecentActivitySpecification());
 
 // Use with repositories
 var customers = await repository.FindAsync(activePremiumSpec);
@@ -317,212 +316,23 @@ if (activePremiumSpec.IsSatisfiedBy(customer))
 }
 ```
 
-## Common Patterns
+## Examples
 
-### 1. Rich Domain Entity
-
-```csharp
-public class Account : AggregateRoot<Guid>
-{
-    public AccountNumber Number { get; private set; }
-    public Money Balance { get; private set; }
-    public AccountStatus Status { get; private set; }
-
-    public Result Withdraw(Money amount)
-    {
-        if (Status != AccountStatus.Active)
-            return Result.Failure("Account is not active");
-
-        if (Balance < amount)
-            return Result.Failure("Insufficient funds");
-
-        Balance = Balance.Subtract(amount);
-        AddDomainEvent(new MoneyWithdrawnEvent(Id, amount));
-
-        return Result.Success();
-    }
-}
-```
-
-### 2. Complex Value Object
-
-```csharp
-public class Address : ValueObject<Address>
-{
-    public string Street { get; }
-    public string City { get; }
-    public string PostalCode { get; }
-    public string Country { get; }
-
-    public Address(string street, string city, string postalCode, string country)
-    {
-        Street = Guard.Against.NullOrWhiteSpace(street);
-        City = Guard.Against.NullOrWhiteSpace(city);
-        PostalCode = ValidatePostalCode(postalCode, country);
-        Country = Guard.Against.NullOrWhiteSpace(country);
-    }
-
-    protected override IEnumerable<object?> GetEqualityComponents()
-    {
-        yield return Street;
-        yield return City;
-        yield return PostalCode;
-        yield return Country;
-    }
-}
-```
-
-### 3. Business Rule Specification
-
-```csharp
-public class EligibleForPromotionSpec : Specification<Customer>
-{
-    public EligibleForPromotionSpec()
-        : base(c => c.Status == CustomerStatus.Active &&
-                   c.TotalPurchases >= 1000 &&
-                   c.RegisteredDate <= DateTime.UtcNow.AddMonths(-6))
-    {
-        AddInclude(c => c.Orders);
-    }
-}
-
-// Use in service or repository
-var eligibleCustomers = await repository.ListAsync(new EligibleForPromotionSpec());
-```
-
-### 4. Domain Service Pattern
-
-```csharp
-public interface IExchangeRateService : IDomainService
-{
-    Money Convert(Money amount, Currency targetCurrency);
-}
-
-public class MoneyTransferService : IDomainService
-{
-    private readonly IExchangeRateService _exchangeRates;
-
-    public Result TransferFunds(Account from, Account to, Money amount)
-    {
-        // Complex business logic involving multiple aggregates
-        var withdrawResult = from.Withdraw(amount);
-        if (withdrawResult.IsFailure)
-            return withdrawResult;
-
-        var convertedAmount = from.Currency != to.Currency
-            ? _exchangeRates.Convert(amount, to.Currency)
-            : amount;
-
-        to.Deposit(convertedAmount);
-
-        return Result.Success();
-    }
-}
-```
+See examples and real-world walkthroughs in `https://github.com/ymjaber/domain-base/blob/main/docs/examples.md`.
 
 ## Documentation
 
-For comprehensive documentation, visit the [docs](./docs) folder:
+The full documentation is available on GitHub:
 
-- [Getting Started Guide](./docs/getting-started/quick-start.md)
-- [Core Concepts](./docs/core-concepts/)
-- [API Reference](./docs/api-reference/)
-- [Examples](./docs/examples/)
-- [Best Practices](./docs/guides/ddd-best-practices.md)
-- [Migration Guide](./docs/guides/migration-guide.md)
+- Getting Started: `https://github.com/ymjaber/domain-base/blob/main/docs/quick-start.md`
+- Core Concepts: `https://github.com/ymjaber/domain-base/blob/main/docs/README.md`
+- Generators & Analyzers: `https://github.com/ymjaber/domain-base/blob/main/docs/generators.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/analyzers.md`
+- Guides: `https://github.com/ymjaber/domain-base/blob/main/docs/ddd-best-practices.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/ef-core.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/serialization.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/migration-guide.md`
+- Examples: `https://github.com/ymjaber/domain-base/blob/main/docs/examples.md`
 
 ## Real-World Example
 
-```csharp
-public class ECommerceExample
-{
-    // Rich domain entity with business logic
-    public class Product : AggregateRoot<Guid>
-    {
-        public ProductName Name { get; private set; }
-        public Money Price { get; private set; }
-        public StockQuantity Stock { get; private set; }
-        public ProductStatus Status { get; private set; }
-
-        public Product(Guid id, ProductName name, Money price) : base(id)
-        {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
-            Price = price ?? throw new ArgumentNullException(nameof(price));
-            Stock = StockQuantity.Zero;
-            Status = ProductStatus.Draft;
-        }
-
-        public void Publish()
-        {
-            if (Status != ProductStatus.Draft)
-                throw new InvalidOperationException("Only draft products can be published");
-
-            Status = ProductStatus.Active;
-            AddDomainEvent(new ProductPublishedEvent(Id, Name.Value));
-        }
-
-        public void AddStock(int quantity)
-        {
-            Stock = Stock.Add(quantity);
-            AddDomainEvent(new StockAddedEvent(Id, quantity));
-        }
-
-        public Result<StockReservation> ReserveStock(int quantity)
-        {
-            if (Status != ProductStatus.Active)
-                return Result.Failure<StockReservation>("Product is not active");
-
-            if (!Stock.CanReserve(quantity))
-                return Result.Failure<StockReservation>("Insufficient stock");
-
-            var reservation = new StockReservation(Guid.NewGuid(), Id, quantity);
-            Stock = Stock.Reserve(quantity);
-
-            AddDomainEvent(new StockReservedEvent(Id, reservation.Id, quantity));
-            return Result.Success(reservation);
-        }
-    }
-
-    // Value objects enforce business rules
-    public class Money : ValueObject<Money>
-    {
-        public decimal Amount { get; }
-        public string Currency { get; }
-
-        public Money(decimal amount, string currency)
-        {
-            if (amount < 0)
-                throw new ArgumentException("Amount cannot be negative");
-            Amount = amount;
-            Currency = Guard.Against.NullOrWhiteSpace(currency);
-        }
-
-        protected override IEnumerable<object?> GetEqualityComponents()
-        {
-            yield return Amount;
-            yield return Currency;
-        }
-
-        public Money Add(Money other)
-        {
-            if (Currency != other.Currency)
-                throw new InvalidOperationException("Cannot add different currencies");
-            return new Money(Amount + other.Amount, Currency);
-        }
-    }
-
-    // Specifications for complex queries
-    public class AvailableProductsSpec : Specification<Product>
-    {
-        public AvailableProductsSpec()
-            : base(p => p.Status == ProductStatus.Active && p.Stock.Available > 0)
-        {
-            AddInclude(p => p.Reviews);
-            ApplyOrderBy(p => p.Name.Value);
-        }
-    }
-}
-```
+See `https://github.com/ymjaber/domain-base/blob/main/docs/examples.md#e-commerce-domain` for a complete e‑commerce walkthrough.
 
 ## Performance
 
@@ -536,7 +346,7 @@ DomainBase is designed for high performance:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](./docs/contributing.md) for details.
+We welcome contributions! Please see our Contributing Guide: `https://github.com/ymjaber/domain-base/blob/main/docs/contributing.md`.
 
 ## Best Practices
 

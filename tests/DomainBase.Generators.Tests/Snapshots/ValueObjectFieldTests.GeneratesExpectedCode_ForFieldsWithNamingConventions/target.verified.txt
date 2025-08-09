@@ -9,7 +9,7 @@
     {
       Id: DBVO004,
       Severity: Error,
-      Message: The property '_name' has [CustomEquality] but is missing the required static method 'GetHashCode_Name',
+      Message: The property '_name' has [CustomEquality] but is missing the required static method 'GetHashCode_Name' with signature: private static void GetHashCode_Name(in T value, ref HashCode hashCode),
       Location: (9,29)
     },
     {
@@ -21,7 +21,7 @@
     {
       Id: DBVO004,
       Severity: Error,
-      Message: The property 'm_age' has [CustomEquality] but is missing the required static method 'GetHashCode_Age',
+      Message: The property 'm_age' has [CustomEquality] but is missing the required static method 'GetHashCode_Age' with signature: private static void GetHashCode_Age(in T value, ref HashCode hashCode),
       Location: (12,26)
     }
   ],

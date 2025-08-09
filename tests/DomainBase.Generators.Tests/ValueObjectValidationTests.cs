@@ -14,10 +14,10 @@ public class ValueObjectValidationTests
             public class Product  // No [ValueObject] attribute
             {
                 [IncludeInEquality]
-                public string Name { get; set; }
+                public string Name { get; init; }
                 
                 [CustomEquality]
-                public int Price { get; set; }
+                public int Price { get; init; }
                 
                 [SequenceEquality]
                 public List<string> Tags { get; set; }
@@ -39,10 +39,10 @@ public class ValueObjectValidationTests
             public partial class Product  // Doesn't inherit from ValueObject<T>
             {
                 [IncludeInEquality]
-                public string Name { get; set; }
+                public string Name { get; init; }
                 
                 [IncludeInEquality]
-                public int Price { get; set; }
+                public int Price { get; init; }
             }
             """;
 
@@ -61,10 +61,10 @@ public class ValueObjectValidationTests
             public partial class Product : ValueObject<Product>
             {
                 [IncludeInEquality]
-                public string Name { get; set; }
+                public string Name { get; init; }
                 
                 [CustomEquality]
-                public int Price { get; set; }
+                public int Price { get; init; }
                 
                 private partial void IsEqualPrice(int price, int otherPrice, ref bool result)
                 {
@@ -93,7 +93,7 @@ public class ValueObjectValidationTests
             public class ClassA
             {
                 [IncludeInEquality]
-                public string Name { get; set; }
+                public string Name { get; init; }
             }
 
             // Class with [ValueObject] but no inheritance
@@ -101,7 +101,7 @@ public class ValueObjectValidationTests
             public partial class ClassB
             {
                 [IncludeInEquality]
-                public string Name { get; set; }
+                public string Name { get; init; }
             }
             """;
 

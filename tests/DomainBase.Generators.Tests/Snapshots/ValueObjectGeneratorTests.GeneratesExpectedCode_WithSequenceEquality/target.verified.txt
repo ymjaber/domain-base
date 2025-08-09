@@ -18,9 +18,9 @@ namespace TestNamespace
         /// </summary>
         protected override bool EqualsCore(Order other)
         {
-            if (!SequenceEquals(Items, other.Items, true)) return false;
+            if (!SequenceEquals(Items, other.Items, true, true)) return false;
             if (!EqualityComparer<string>.Default.Equals(OrderId, other.OrderId)) return false;
-            if (!SequenceEquals(Tags, other.Tags, false)) return false;
+            if (!SequenceEquals(Tags, other.Tags, false, true)) return false;
             return true;
         }
 
@@ -31,29 +31,54 @@ namespace TestNamespace
         {
             var hashCode = new HashCode();
 
-            if (Items != null)
-            {
-                foreach (var item in Items)
-                    hashCode.Add(item);
-            }
+            AddSequenceHashCode(Items, ref hashCode, true, true);
             hashCode.Add(OrderId);
-            if (Tags != null)
-            {
-                foreach (var item in Tags)
-                    hashCode.Add(item);
-            }
+            AddSequenceHashCode(Tags, ref hashCode, false, true);
 
             return hashCode.ToHashCode();
         }
 
-        private static bool SequenceEquals<T>(IEnumerable<T>? first, IEnumerable<T>? second, bool orderMatters)
+        private static bool SequenceEquals<T>(IEnumerable<T>? first, IEnumerable<T>? second, bool orderMatters, bool deepEquality)
         {
             if (ReferenceEquals(first, second)) return true;
             if (first is null || second is null) return false;
 
-            return orderMatters
-                ? first.SequenceEqual(second)
-                : first.OrderBy(x => x).SequenceEqual(second.OrderBy(x => x));
+            var comparer = (!deepEquality && !typeof(T).IsValueType) ? (IEqualityComparer<T>)ReferenceEqualityComparerAdapter<T>.Instance : EqualityComparer<T>.Default;
+            if (orderMatters)
+                return first.SequenceEqual(second, comparer);
+
+            var counts = new Dictionary<T, int>(comparer);
+            foreach (var x in first) counts[x] = counts.TryGetValue(x, out var c) ? c + 1 : 1;
+            foreach (var y in second)
+            {
+                if (!counts.TryGetValue(y, out var c)) return false;
+                if (c == 1) counts.Remove(y); else counts[y] = c - 1;
+            }
+            return counts.Count == 0;
+        }
+
+        private static void AddSequenceHashCode<T>(IEnumerable<T>? source, ref HashCode hashCode, bool orderMatters, bool deepEquality)
+        {
+            if (source is null) return;
+            if (orderMatters)
+            {
+                foreach (var item in source) hashCode.Add(item); return;
+            }
+            var comparer = (!deepEquality && !typeof(T).IsValueType) ? (IEqualityComparer<T>)ReferenceEqualityComparerAdapter<T>.Instance : EqualityComparer<T>.Default;
+            var counts = new Dictionary<T, int>(comparer);
+            foreach (var x in source) counts[x] = counts.TryGetValue(x, out var c) ? c + 1 : 1;
+            foreach (var kvp in counts.OrderBy(kvp => comparer.GetHashCode(kvp.Key)))
+            {
+                hashCode.Add(kvp.Value);
+                hashCode.Add(kvp.Key);
+            }
+        }
+
+        private sealed class ReferenceEqualityComparerAdapter<T> : IEqualityComparer<T>
+        {
+            public static readonly ReferenceEqualityComparerAdapter<T> Instance = new();
+            public bool Equals(T x, T y) => ReferenceEquals(x, y);
+            public int GetHashCode(T obj) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(obj!);
         }
 
     }

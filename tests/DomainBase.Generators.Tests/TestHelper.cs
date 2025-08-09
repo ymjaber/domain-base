@@ -6,6 +6,8 @@ using Microsoft.CodeAnalysis.Testing;
 using Microsoft.CodeAnalysis.Text;
 using VerifyTests;
 using DomainBase.Generators;
+using DomainBase.Analyzers;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace DomainBase.Generators.Tests;
 
@@ -80,22 +82,46 @@ internal static class TestHelper
 
         var runResult = driver.GetRunResult();
 
-        return Verifier.Verify(new
-        {
-            Diagnostics = diagnostics.Select(d => new
+        // Run analyzers to collect diagnostics (generators do not emit analyzer diagnostics)
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new EnumerationAnalyzer(), new ValueObjectAnalyzer());
+        var analyzerDiagnostics = outputCompilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result;
+        var orderedDiagnostics = analyzerDiagnostics
+            .OrderBy(d => d.Location.SourceSpan.Start)
+            .ThenBy(d => d.Location.GetLineSpan().Path)
+            .ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Line)
+            .ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Character)
+            .ThenBy(d => d.Id)
+            .Select(d => new
             {
                 d.Id,
                 d.Severity,
                 Message = d.GetMessage(),
                 Location = FormatLocation(d.Location)
-            }),
-            GeneratedSources = runResult.Results.SelectMany(r => r.GeneratedSources)
-                .Select(s => new
-                {
-                    s.HintName,
-                    Content = s.SourceText.ToString()
-                })
-        }, _verifySettings);
+            })
+            .ToList();
+
+        object payload = orderedDiagnostics.Count == 0
+            ? new
+            {
+                GeneratedSources = runResult.Results.SelectMany(r => r.GeneratedSources)
+                    .Select(s => new
+                    {
+                        s.HintName,
+                        Content = s.SourceText.ToString()
+                    })
+            }
+            : new
+            {
+                Diagnostics = (IEnumerable<object>)orderedDiagnostics,
+                GeneratedSources = runResult.Results.SelectMany(r => r.GeneratedSources)
+                    .Select(s => new
+                    {
+                        s.HintName,
+                        Content = s.SourceText.ToString()
+                    })
+            };
+
+        return Verifier.Verify(payload, _verifySettings);
     }
 
     public static Task VerifyDiagnostics(string source)
@@ -116,8 +142,15 @@ internal static class TestHelper
 
         var runResult = driver.GetRunResult();
 
-        var generatorDiagnostics = runResult.Results
-            .SelectMany(r => r.Diagnostics)
+        // Analyzer diagnostics (not generator diagnostics)
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new EnumerationAnalyzer(), new ValueObjectAnalyzer());
+        var analyzerDiagnostics = outputCompilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result;
+        var orderedDiagnostics = analyzerDiagnostics
+            .OrderBy(d => d.Location.SourceSpan.Start)
+            .ThenBy(d => d.Location.GetLineSpan().Path)
+            .ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Line)
+            .ThenBy(d => d.Location.GetLineSpan().StartLinePosition.Character)
+            .ThenBy(d => d.Id)
             .Select(d => new
             {
                 d.Id,
@@ -126,7 +159,7 @@ internal static class TestHelper
                 Location = FormatLocation(d.Location)
             });
 
-        return Verifier.Verify(generatorDiagnostics, _verifySettings);
+        return Verifier.Verify(orderedDiagnostics, _verifySettings);
     }
 
     private static string FormatLocation(Location location)

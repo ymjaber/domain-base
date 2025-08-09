@@ -25,7 +25,7 @@ public class ValueObjectGeneratorTests
                 public string City { get; init; }
                 
                 [IgnoreEquality]
-                public DateTime CreatedAt { get; set; }
+                public DateTime CreatedAt { get; init; }
             }
             """;
 
@@ -216,7 +216,7 @@ public class ValueObjectGeneratorTests
                 private readonly int _field;
                 
                 [IgnoreEquality]
-                private string _ignoredField;
+                private readonly string _ignoredField;
                 
                 public MixedMembers(string property, int field)
                 {

@@ -9,22 +9,14 @@ public class DomainEventTests
         public TestDomainEvent(Guid id, DateTimeOffset occurredOn) : base(id, occurredOn) { }
     }
     
-    private record SimpleTestDomainEvent : DomainEvent
-    {
-        public SimpleTestDomainEvent(Guid id) : base() 
-        {
-            // We need to set the Id after construction since the parameterless constructor generates a new Id
-            // This is a test limitation - in real usage, you'd either use the parameterless constructor for new events
-            // or the parameterized constructor for reconstruction
-        }
-    }
+    private record ParameterlessTestDomainEvent : DomainEvent;
 
     [Fact]
     public void Constructor_WithIdAndOccurredOn_SetsProperties()
     {
         // Arrange
         var id = Guid.NewGuid();
-        var occurredOn = DateTimeOffset.Now;
+        var occurredOn = DateTimeOffset.UtcNow;
 
         // Act
         var domainEvent = new TestDomainEvent(id, occurredOn);
@@ -41,7 +33,7 @@ public class DomainEventTests
         var beforeTime = DateTimeOffset.UtcNow;
 
         // Act
-        var domainEvent = new SimpleTestDomainEvent(Guid.NewGuid());
+        var domainEvent = new ParameterlessTestDomainEvent();
 
         // Assert
         Assert.NotEqual(Guid.Empty, domainEvent.Id);
@@ -54,7 +46,7 @@ public class DomainEventTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var occurredOn = DateTimeOffset.Now;
+        var occurredOn = DateTimeOffset.UtcNow;
 
         // Act
         var event1 = new TestDomainEvent(id, occurredOn);
@@ -70,7 +62,7 @@ public class DomainEventTests
     public void Records_WithDifferentIds_AreNotEqual()
     {
         // Arrange
-        var occurredOn = DateTimeOffset.Now;
+        var occurredOn = DateTimeOffset.UtcNow;
 
         // Act
         var event1 = new TestDomainEvent(Guid.NewGuid(), occurredOn);
@@ -88,8 +80,8 @@ public class DomainEventTests
         var id = Guid.NewGuid();
 
         // Act
-        var event1 = new TestDomainEvent(id, DateTimeOffset.Now);
-        var event2 = new TestDomainEvent(id, DateTimeOffset.Now.AddSeconds(1));
+        var event1 = new TestDomainEvent(id, DateTimeOffset.UtcNow);
+        var event2 = new TestDomainEvent(id, DateTimeOffset.UtcNow.AddSeconds(1));
 
         // Assert
         Assert.NotEqual(event1, event2);
@@ -100,8 +92,8 @@ public class DomainEventTests
     {
         // Arrange
         var events = new List<DomainEvent>();
-        var event1 = new TestDomainEvent(Guid.NewGuid(), DateTimeOffset.Now);
-        var event2 = new SimpleTestDomainEvent(Guid.NewGuid());
+        var event1 = new TestDomainEvent(Guid.NewGuid(), DateTimeOffset.UtcNow);
+        var event2 = new ParameterlessTestDomainEvent();
 
         // Act
         events.Add(event1);

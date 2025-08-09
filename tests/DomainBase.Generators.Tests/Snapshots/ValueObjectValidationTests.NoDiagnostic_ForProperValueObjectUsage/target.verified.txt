@@ -8,7 +8,7 @@
   {
     Id: DBVO004,
     Severity: Error,
-    Message: The property 'Price' has [CustomEquality] but is missing the required static method 'GetHashCode_Price',
+    Message: The property 'Price' has [CustomEquality] but is missing the required static method 'GetHashCode_Price' with signature: private static void GetHashCode_Price(in T value, ref HashCode hashCode),
     Location: (12,16)
   }
 ]

@@ -14,7 +14,7 @@ public class EnumerationTests
         public OrderStatus(int value, string name) : base(value, name) { }
     }
 
-    // Test enumeration with source generator
+    // Enumeration leveraging source generator
     [GenerateJsonConverter]
     public partial class PaymentMethod : Enumeration
     {
@@ -95,8 +95,9 @@ public class EnumerationTests
         Assert.Equal(OrderStatus.Rejected, sorted[2]);
     }
 
-    // These tests are commented out as they rely on source-generated methods
-    // Once the source generator is working properly, these can be re-enabled
+    // The following tests rely on generator-produced methods. They are covered
+    // in `DomainBase.Generators.Tests` where the generator is exercised. Here we
+    // leave them disabled to avoid coupling runtime tests to generators.
     
     // [Fact]
     // public void GetAll_ReturnsAllDefinedValues()
