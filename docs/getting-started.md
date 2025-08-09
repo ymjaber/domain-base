@@ -282,7 +282,7 @@ public sealed class OrderRepository : Repository<Order, Guid>
 
 ## Tips, pitfalls, and conventions
 
-| Note: The anayzer will give warnings or errors with code fixes for most of the below pitfalls to guide you and prevent you from falling into mistakes
+| Note: The anayzer will give warnings or errors with code fixes for some of the below pitfalls to guide you and prevent you from falling into mistakes
 
 - Make generator-backed classes `partial`.
 - For rich value objects, apply exactly one equality attribute per member.

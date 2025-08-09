@@ -12,6 +12,7 @@ Goal: by the end, you will model an order domain with value objects, enumeration
 - [5) Query with specifications](#5-query-with-specifications)
 - [6) Repository pattern (optional)](#6-repository-pattern-optional)
 - [7) Put it together](#7-put-it-together)
+ - [8) Use in a console app](#8-use-in-a-console-app)
 
 ## Prerequisites
 
@@ -189,4 +190,42 @@ await repo.UpdateAsync(order);
 You now have a cohesive domain model with safe equality, events, and query composition.
 
 Continue to the guide: [guide.md](guide.md) and API reference: [reference.md](reference.md).
+
+## 8) Use in a console app
+
+Create a minimal console app (dotnet new console) and reference your domain project. Then use the enumeration helpers and value objects directly:
+
+```csharp
+using System;
+using DomainBase;
+
+// Using enumeration helpers
+var allStatuses = OrderStatus.GetAll();
+Console.WriteLine($"All statuses: {string.Join(", ", allStatuses)}");
+
+var submittedByValue = OrderStatus.FromValue(1);
+Console.WriteLine($"FromValue(1): {submittedByValue.Name}");
+
+var approvedByName = OrderStatus.FromName("Approved");
+Console.WriteLine($"FromName(Approved): {approvedByName.Value}");
+
+if (OrderStatus.TryFromName("Shipped", out var shipped))
+{
+    Console.WriteLine($"TryFromName(Shipped): {shipped!.Name}");
+}
+else
+{
+    Console.WriteLine("Unknown status name: Shipped");
+}
+
+// Using a wrapper value object
+var orderId = new OrderId(Guid.NewGuid());
+Console.WriteLine($"OrderId: {orderId.Value}");
+
+// Using a rich value object
+var price = new Money(100m, "USD");
+Console.WriteLine($"Price: {price.Amount} {price.Currency}");
+```
+
+This is often the fastest way to sanity-check your model while you iterate.
 
