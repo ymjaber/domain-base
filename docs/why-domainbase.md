@@ -14,9 +14,3 @@ Domain models deserve first-class ergonomics. DomainBase focuses on:
 - You value compile-time guidance and code fixes for value objects and enumerations
 - You need domain events and a simple dispatcher to integrate with DI
 - You prefer explicit specifications for query logic
-
-## When not to use it
-
-- You need a full persistence/ORM repository framework out-of-the-box
-- You prefer runtime reflection-heavy libraries over compile-time generation
-
