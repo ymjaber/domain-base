@@ -2,11 +2,11 @@
 
 Domain models deserve first-class ergonomics. DomainBase focuses on:
 
-- Productivity: generate equality and infrastructure glue instead of writing it by hand
-- Safety: analyzers surface mistakes early with actionable code fixes
-- Performance: optimized equality; AOT-friendly; minimal allocations
-- Clarity: small, well-named primitives instead of heavy frameworks
-- Interop: JSON converters, EF Core converters, and type converters when you need them
+- **Productivity**: generate equality and infrastructure glue instead of writing it by hand
+- **Safety**: analyzers surface mistakes early with actionable code fixes
+- **Performance**: optimized equality; AOT-friendly; minimal allocations
+- **Clarity**: small, well-named primitives instead of heavy frameworks
+- **Interop**: JSON converters, EF Core converters, and type converters when you need them
 
 ## When to use it
 
