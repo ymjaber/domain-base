@@ -103,10 +103,14 @@ Custom equality example (case-insensitive last name):
 [ValueObject]
 public sealed partial class PersonName : ValueObject<PersonName>
 {
-    [IncludeInEquality] public string FirstName { get; init; } = "";
-    [CustomEquality]    public string LastName  { get; init; } = "";
+    // Setting priorities is optional
+    // 5 > 3, thus when comparing 2 PersonName objects, LastName will be checked first
+    // This is useful for performance when you know which properties or fields that are more likly to differ
+    [IncludeInEquality(3)] public string FirstName { get; init; } = "";
+    [CustomEquality(Priority = 5)] public string LastName  { get; init; } = "";
 
-    private static void Equals_LastName(in string v, in string o, out bool r)
+    // Those 2 methods can be auto generated with the code fix
+    private static void Equals_LastName(in string lastName, in string otherLastName, out bool r)
         => r = string.Equals(v, o, StringComparison.OrdinalIgnoreCase);
 
     private static void GetHashCode_LastName(in string v, ref HashCode h)
@@ -251,7 +255,7 @@ public sealed class OrdersByStatus : Specification<Order>
 var submitted = SpecificationEvaluator.GetQuery(db.Orders, new OrdersByStatus(OrderStatus.Submitted));
 ```
 
-## Repository pattern (optional)
+## Repository pattern
 
 Use `Repository<TEntity,TId>` to centralize persistence and automatically dispatch domain events after saves.
 
@@ -277,6 +281,8 @@ public sealed class OrderRepository : Repository<Order, Guid>
 ```
 
 ## Tips, pitfalls, and conventions
+
+| Note: The anayzer will give warnings or errors with code fixes for most of the below pitfalls to guide you and prevent you from falling into mistakes
 
 - Make generator-backed classes `partial`.
 - For rich value objects, apply exactly one equality attribute per member.
