@@ -110,7 +110,6 @@ public sealed class OrderSubmittedHandler : IDomainEventHandler<OrderSubmitted>
 This root README is intentionally brief. For full and detailed documentation, see the docs on the repository:
 
 - Index: [docs index](https://github.com/ymjaber/domain-base/tree/main/docs)
-
 - Getting started: [docs/getting-started.md](https://github.com/ymjaber/domain-base/blob/main/docs/getting-started.md)
 - Tutorial: [docs/tutorial.md](https://github.com/ymjaber/domain-base/blob/main/docs/tutorial.md)
 - Guide: [docs/guide.md](https://github.com/ymjaber/domain-base/blob/main/docs/guide.md)
