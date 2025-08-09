@@ -1,46 +1,21 @@
-# DomainBase Documentation
+# DomainBase documentation
 
-Welcome to DomainBase. This documentation covers core concepts, step-by-step tutorials, advanced usage, analyzers, generators, and real-world examples.
+Welcome. This documentation is organized to help you go from zero to productive, with depth when you need it.
 
-## Introduction
-- [What is DomainBase?](./introduction.md)
+## Index
 
-## Getting Started
-- [Installation](./installation.md)
-- [Quick Start](./quick-start.md)
+- Why DomainBase: [why-domainbase.md](why-domainbase.md)
+- Getting started: [getting-started.md](getting-started.md)
+- Tutorial (step-by-step): [tutorial.md](tutorial.md)
+- Guide (how to use everything): [guide.md](guide.md)
+- Generators: [generators.md](generators.md)
+- Analyzers: [analyzers.md](analyzers.md)
+- Code fixes: [code-fixes.md](code-fixes.md)
+- API reference: [reference.md](reference.md)
+- Real-world examples: [examples.md](examples.md)
+- Best practices and code smells: [best-practices.md](best-practices.md)
+- FAQ: [faq.md](faq.md)
+- Contributing: [contributing.md](contributing.md)
 
-## Core Concepts
-- [Entities](./entities.md)
-- [Aggregate Roots & Domain Events](./aggregate-roots.md)
-- [Value Objects](./value-objects.md)
-- [Enumerations](./enumerations.md)
-- [Specifications](./specifications.md)
-- [Repositories](./repositories.md)
-- [Domain Services](./domain-services.md)
-
-## Generators & Analyzers
-- [Generators](./generators.md)
-- [Analyzers](./analyzers.md)
-
-## Guides
-- [DDD Best Practices](./ddd-best-practices.md)
-- [EF Core Integration](./ef-core.md)
-- [Serialization](./serialization.md)
-- [Migration Guide](./migration-guide.md)
-
-## Examples
-- [E‑commerce Domain](./examples.md#e-commerce-domain)
-- [Banking Transfers](./examples.md#banking-transfers)
-- [Bookings](./examples.md#bookings)
-
-## Tutorials
-- [Step-by-step Tutorials](./tutorials.md)
-
-## Advanced Topics
-- Generated JSON converters behavior (`UnknownValueBehavior`)
-- EF Core value converters for enumerations and value objects
-- Sequence equality optimization and priorities
-
-## API Reference
-- [API Overview](./api-reference.md)
+Also see the NuGet package: [DomainBase on NuGet](https://www.nuget.org/packages/DomainBase/)
 

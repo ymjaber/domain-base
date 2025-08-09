@@ -1,7 +1,7 @@
 ﻿{
   Diagnostics: [
     {
-      Id: DBENUM003,
+      Id: DBEN003,
       Severity: Error,
       Message: The enumeration 'InvalidStatus' must be declared as a partial class to enable source generation,
       Location: (5,14)

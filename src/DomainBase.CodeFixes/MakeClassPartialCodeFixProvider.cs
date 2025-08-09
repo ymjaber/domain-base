@@ -18,7 +18,7 @@ namespace DomainBase.Generators.CodeFixes;
 public class MakeClassPartialCodeFixProvider : CodeFixProvider
 {
     /// <inheritdoc />
-    public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create("DBVO001", "DBENUM003");
+    public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create("DBVO001", "DBEN003");
 
     /// <inheritdoc />
     public sealed override FixAllProvider GetFixAllProvider()

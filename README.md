@@ -1,392 +1,116 @@
 # DomainBase
 
-[![NuGet](https://img.shields.io/nuget/v/DomainBase.svg)](https://www.nuget.org/packages/DomainBase/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![DomainBase](assets/icon.png)
 
-DomainBase is a comprehensive Domain-Driven Design (DDD) library for C#/.NET that provides essential building blocks for implementing rich domain models. Build maintainable domain layers with entities featuring identity-based equality, aggregate roots supporting domain events, immutable value objects, type-safe enumerations with behavior, and composable specifications for complex queries. Express your business rules clearly with clean abstractions that put domain logic where it belongs - in your domain model.
+[![NuGet](https://img.shields.io/nuget/v/DomainBase.svg?style=for-the-badge)](https://www.nuget.org/packages/DomainBase/)
+[![Downloads](https://img.shields.io/nuget/dt/DomainBase.svg?style=for-the-badge)](https://www.nuget.org/packages/DomainBase/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=for-the-badge)](LICENSE)
 
-## Why DomainBase?
+Lightweight, pragmatic building blocks for Domain-Driven Design (DDD) in .NET: entities, aggregate roots, value objects, domain events, specifications, repositories, and more. Includes source generators and analyzers to keep your domain model clean, safe, and fast.
 
-Traditional data-centric architectures in C# often lead to:
+## Table of contents
 
-- **Anemic domain models** - Business logic scattered across services
-- **Primitive obsession** - Using strings and ints instead of domain concepts
-- **Inconsistent state** - No clear aggregate boundaries
-- **Lost domain events** - Important business moments go unrecorded
-- **Complex queries** - Business rules mixed with data access logic
+- [Why DomainBase](#why-domainbase)
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Documentation](#documentation)
+- [Links](#links)
 
-DomainBase solves these problems by providing battle-tested DDD patterns that make your domain model the heart of your application.
+## Why DomainBase
 
-## Key Features
+- Clear, minimal primitives: `Entity<TId>`, `AggregateRoot<TId>`, `ValueObject<TSelf>`, `Enumeration`, `DomainEvent`, `Specification<T>`
+- Batteries included: analyzers (diagnostics + code fixes) and source generators that eliminate boilerplate
+- AOT-friendly and fast: optimized equality, no runtime code emission
+- Production-minded: exceptions, auditing interfaces, domain event dispatcher
 
-- **🎯 Entity Base Classes** - Identity-based equality for domain objects
-- **🏛️ Aggregate Roots** - Consistency boundaries with domain event support
-- **💎 Value Objects** - Immutable objects with value-based equality and source generation
-- **📢 Domain Events** - Capture important business moments
-- **🔍 Specifications** - Composable query logic with AND/OR/NOT operations
-- **🎨 Type-Safe Enumerations** - Smart enums with behavior and source generation
-- **⚡ Zero Overhead** - Optimized implementations with minimal allocations
-- **🛡️ Thread Safety** - Immutable value objects and thread-safe patterns
-- **📦 Repository Abstractions** - Clean persistence interfaces
-- **🔧 Domain Services** - Encapsulate cross-aggregate operations
-- **📝 Comprehensive Docs** - Full API documentation and examples
-- **✅ Battle Tested** - Production-ready with extensive test coverage
-- **🚀 Performance First** - Designed for high-throughput scenarios
-- **🎯 Best Practices** - Follows DDD patterns from Evans, Vernon, and Fowler
-
-## Installation
-
-### Core Package
+## Install
 
 ```bash
-dotnet add package DomainBase
+dotnet add package DomainBase --version 2.0.0
 ```
 
-Or via Package Manager:
+Targets: `net9.0` (generators/analyzers: `netstandard2.0`).
 
-```powershell
-Install-Package DomainBase
-```
-
-## Quick Start
-
-### Entity - Objects with Identity
+## Quick start
 
 ```csharp
 using DomainBase;
 
-// Define an entity with identity
-public class Customer : Entity<Guid>
+// 1) Simple value object wrapper
+[GenerateVoJsonConverter]
+[GenerateTypeConverter]
+public sealed partial class OrderId : ValueObject<OrderId, Guid>
 {
-    public string Name { get; private set; }
-    public Email Email { get; private set; }
-    public bool IsActive { get; private set; }
-
-    public Customer(Guid id, string name, Email email) : base(id)
-    {
-        Name = Guard.Against.NullOrWhiteSpace(name, nameof(name));
-        Email = email ?? throw new ArgumentNullException(nameof(email));
-        IsActive = true;
-    }
-
-    public void Deactivate()
-    {
-        if (!IsActive)
-            throw new InvalidOperationException("Customer is already inactive");
-
-        IsActive = false;
-    }
+    public OrderId(Guid value) : base(value) { }
 }
 
-// Use the entity
-var customerId = Guid.NewGuid();
-var customer1 = new Customer(customerId, "John Doe", new Email("john@example.com"));
-var customer2 = new Customer(customerId, "Jane Doe", new Email("jane@example.com"));
-
-// Same ID = same entity, regardless of other properties
-Console.WriteLine(customer1 == customer2); // True
-```
-
-### Value Object - Immutable Values
-
-DomainBase provides two ways to create value objects:
-
-#### Traditional Approach (Manual Implementation)
-
-```csharp
-using DomainBase;
-
-// Define a value object
-public class Email : ValueObject<Email>
-{
-    public string Value { get; }
-
-    public Email(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            throw new ArgumentException("Email cannot be empty");
-
-        if (!value.Contains("@"))
-            throw new ArgumentException("Invalid email format");
-
-        Value = value.ToLowerInvariant();
-    }
-
-    protected override bool EqualsCore(Email other) => Value == other.Value;
-    protected override int GetHashCodeCore() => Value.GetHashCode();
-}
-
-// Value objects are compared by value, not reference
-var email1 = new Email("john@example.com");
-var email2 = new Email("JOHN@EXAMPLE.COM");
-Console.WriteLine(email1 == email2); // True (case-insensitive)
-```
-
-#### Source Generator Approach (New!)
-
-```csharp
-using DomainBase;
-
-// Define a value object with source generation
+// 2) Rich value object with generated equality
 [ValueObject]
-public partial class Address : ValueObject<Address>
+public sealed partial class Money : ValueObject<Money>
 {
-    [IncludeInEquality(Priority = 10)]
-    public string Street { get; init; }
-    
-    [IncludeInEquality(Priority = 5)]
-    public string City { get; init; }
-    
-    [IgnoreEquality] // Explicitly ignored in equality checks
-    public DateTime CreatedAt { get; init; }
+    [IncludeInEquality] public decimal Amount { get; init; }
+    [IncludeInEquality] public string Currency { get; init; }
+
+    public Money(decimal amount, string currency)
+    {
+        Amount = amount;
+        Currency = currency;
+    }
 }
 
-// Custom equality for case-insensitive email
-[ValueObject]
-public partial class Email : ValueObject<Email>
+// 3) Enumeration with helper APIs & JSON converter
+[GenerateJsonConverter(Behavior = UnknownValueBehavior.ThrowException)]
+public sealed partial class OrderStatus : Enumeration
 {
-    [CustomEquality]
-    public string Value { get; init; }
-
-    private static void Equals_Value(in string value, in string otherValue, out bool result)
-        => result = string.Equals(value, otherValue, StringComparison.OrdinalIgnoreCase);
-
-    private static void GetHashCode_Value(in string value, ref HashCode hash)
-        => hash.Add(value, StringComparer.OrdinalIgnoreCase);
+    public static readonly OrderStatus Submitted = new(1, "Submitted");
+    public static readonly OrderStatus Approved = new(2, "Approved");
+    public static readonly OrderStatus Rejected = new(3, "Rejected");
+    public OrderStatus(int value, string name) : base(value, name) { }
 }
 
-// Sequence equality for collections
-[ValueObject]
-public partial class ShoppingCart : ValueObject<ShoppingCart>
+// 4) Aggregate root and domain event
+public sealed class Order : AggregateRoot<Guid>
 {
-    [IncludeInEquality]
-    public string CartId { get; init; }
-    
-    [SequenceEquality(OrderMatters = false)] // Order doesn't matter
-    public List<string> ItemIds { get; init; } = new();
-    
-    [SequenceEquality(OrderMatters = true)] // Order matters
-    public List<decimal> PriceHistory { get; init; } = new();
+    public Order(Guid id) : base(id) { }
+    public void Submit() => AddDomainEvent(new OrderSubmitted(Id));
+}
+
+public sealed record OrderSubmitted(Guid OrderId) : DomainEvent;
+
+// 5) Register dispatcher and handlers (register handlers as non-generic)
+// services.AddSingleton<IDomainEventDispatcher, InMemoryDomainEventDispatcher>();
+// services.AddScoped<IDomainEventHandler, OrderSubmittedHandler>();
+
+public sealed class OrderSubmittedHandler : IDomainEventHandler<OrderSubmitted>
+{
+    public Task HandleAsync(OrderSubmitted domainEvent, CancellationToken ct = default)
+    {
+        // ... react
+        return Task.CompletedTask;
+    }
 }
 ```
-
-The source generator approach provides:
-- **Automatic equality implementation** - No need to implement GetEqualityComponents
-- **Priority-based comparison** - Control the order of equality checks for performance
-- **Custom equality logic** - Override comparison for specific properties
-- **Sequence equality** - Built-in support for collection comparisons
-- **Compile-time safety** - Analyzer warnings for missing attributes
-
-### Aggregate Root - Consistency Boundary
-
-```csharp
-using DomainBase;
-
-// Define an aggregate root that emits domain events
-public class Order : AggregateRoot<Guid>
-{
-    private readonly List<OrderItem> _items = new();
-
-    public IReadOnlyList<OrderItem> Items => _items.AsReadOnly();
-    public OrderStatus Status { get; private set; }
-    public decimal TotalAmount => _items.Sum(i => i.Price * i.Quantity);
-
-    public Order(Guid id, Guid customerId) : base(id)
-    {
-        Status = OrderStatus.Pending;
-        AddDomainEvent(new OrderCreatedEvent(id, customerId));
-    }
-
-    public void AddItem(string productName, decimal price, int quantity)
-    {
-        if (Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Cannot add items to non-pending order");
-
-        var item = new OrderItem(productName, price, quantity);
-        _items.Add(item);
-
-        AddDomainEvent(new OrderItemAddedEvent(Id, productName, quantity));
-    }
-
-    public void Ship()
-    {
-        if (Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Only pending orders can be shipped");
-
-        Status = OrderStatus.Shipped;
-        AddDomainEvent(new OrderShippedEvent(Id));
-    }
-}
-
-// Domain events
-public record OrderCreatedEvent(Guid OrderId, Guid CustomerId) : DomainEvent;
-public record OrderItemAddedEvent(Guid OrderId, string ProductName, int Quantity) : DomainEvent;
-public record OrderShippedEvent(Guid OrderId) : DomainEvent;
-```
-
-### Type-Safe Enumeration
-
-```csharp
-using DomainBase;
-
-// Define a type-safe enumeration with behavior
-// Mark as partial to enable source-generated helpers
-public partial class OrderStatus : Enumeration
-{
-    public static readonly OrderStatus Pending = new(1, "Pending");
-    public static readonly OrderStatus Shipped = new(2, "Shipped");
-    public static readonly OrderStatus Delivered = new(3, "Delivered");
-    public static readonly OrderStatus Cancelled = new(4, "Cancelled");
-
-    private OrderStatus(int id, string name) : base(id, name) { }
-
-    // Add behavior to your enumerations
-    public bool CanShip() => this == Pending;
-    public bool IsFinal() => this == Delivered || this == Cancelled;
-
-    public bool CanTransitionTo(OrderStatus newStatus)
-    {
-        return (this, newStatus) switch
-        {
-            (var current, var next) when current == next => false,
-            (var current, _) when current.IsFinal() => false,
-            _ => true
-        };
-    }
-}
-
-// Use the enumeration
-var status = OrderStatus.Pending;
-if (status.CanShip())
-{
-    // Ship the order
-}
-
-// Source generator provides static lookup/parse methods for partial Enumeration classes
-var allStatuses = OrderStatus.GetAll();
-
-// Parse from value or name
-var shipped = OrderStatus.FromValue(2);
-var pending = OrderStatus.FromName("Pending");
-```
-
-### Specifications - Encapsulated Queries
-
-```csharp
-using DomainBase;
-
-// Define reusable specifications
-public class ActiveCustomerSpecification : Specification<Customer>
-{
-    public ActiveCustomerSpecification()
-        : base(c => c.IsActive && !c.IsDeleted) { }
-}
-
-public class PremiumCustomerSpecification : Specification<Customer>
-{
-    private readonly decimal _minimumPurchases;
-
-    public PremiumCustomerSpecification(decimal minimumPurchases)
-        : base(c => c.TotalPurchases >= minimumPurchases)
-    {
-        _minimumPurchases = minimumPurchases;
-    }
-}
-
-// Compose specifications
-var activePremiumSpec = new ActiveCustomerSpecification()
-    .And(new PremiumCustomerSpecification(10000));
-
-public class RecentActivitySpecification : Specification<Customer>
-{
-    public RecentActivitySpecification()
-        : base(c => c.LastActivityDate > DateTime.UtcNow.AddDays(-7)) { }
-}
-
-var activeOrRecentSpec = new ActiveCustomerSpecification()
-    .Or(new RecentActivitySpecification());
-
-// Use with repositories
-var customers = await repository.FindAsync(activePremiumSpec);
-
-// Check individual entities
-if (activePremiumSpec.IsSatisfiedBy(customer))
-{
-    // Apply premium benefits
-}
-```
-
-## Examples
-
-See examples and real-world walkthroughs in `https://github.com/ymjaber/domain-base/blob/main/docs/examples.md`.
 
 ## Documentation
 
-The full documentation is available on GitHub:
+- Start here: [docs index](docs/README.md)
+- Getting started: [docs/getting-started.md](docs/getting-started.md)
+- Tutorial: [docs/tutorial.md](docs/tutorial.md)
+- Guide: [docs/guide.md](docs/guide.md)
+- API reference: [docs/reference.md](docs/reference.md)
+- Examples: [docs/examples.md](docs/examples.md)
+- Best practices: [docs/best-practices.md](docs/best-practices.md)
+- Why DomainBase: [docs/why-domainbase.md](docs/why-domainbase.md)
+- Contributing: [docs/contributing.md](docs/contributing.md)
+- FAQ: [docs/faq.md](docs/faq.md)
 
-- Getting Started: `https://github.com/ymjaber/domain-base/blob/main/docs/quick-start.md`
-- Core Concepts: `https://github.com/ymjaber/domain-base/blob/main/docs/README.md`
-- Generators & Analyzers: `https://github.com/ymjaber/domain-base/blob/main/docs/generators.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/analyzers.md`
-- Guides: `https://github.com/ymjaber/domain-base/blob/main/docs/ddd-best-practices.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/ef-core.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/serialization.md`, `https://github.com/ymjaber/domain-base/blob/main/docs/migration-guide.md`
-- Examples: `https://github.com/ymjaber/domain-base/blob/main/docs/examples.md`
+## Links
 
-## Real-World Example
-
-See `https://github.com/ymjaber/domain-base/blob/main/docs/examples.md#e-commerce-domain` for a complete e‑commerce walkthrough.
-
-## Performance
-
-DomainBase is designed for high performance:
-
-- Zero-allocation equality checks for common scenarios
-- Compiled expressions for specification queries
-- Minimal boxing with generic constraints
-- Immutable types prevent defensive copying
-- Source generators for enumeration lookups
-
-## Contributing
-
-We welcome contributions! Please see our Contributing Guide: `https://github.com/ymjaber/domain-base/blob/main/docs/contributing.md`.
-
-## Best Practices
-
-1. **Make Your Domain Model Explicit**
-
-    ```csharp
-    // Don't use primitives
-    public void ProcessOrder(string orderId, decimal amount) { }
-
-    // Use domain concepts
-    public void ProcessOrder(OrderId orderId, Money amount) { }
-    ```
-
-2. **Protect Your Invariants**
-
-    ```csharp
-    public class Order : AggregateRoot<OrderId>
-    {
-        private readonly List<OrderItem> _items = new();
-
-        public void AddItem(Product product, int quantity)
-        {
-            // Enforce business rules
-            if (Status != OrderStatus.Draft)
-                throw new InvalidOperationException("Cannot modify submitted order");
-
-            if (quantity <= 0)
-                throw new ArgumentException("Quantity must be positive");
-
-            _items.Add(new OrderItem(product, quantity));
-        }
-    }
-    ```
-
-3. **Use Domain Events for Side Effects**
-    ```csharp
-    public void Ship()
-    {
-        Status = OrderStatus.Shipped;
-        AddDomainEvent(new OrderShippedEvent(Id, CustomerId, DateTime.UtcNow));
-    }
-    ```
+- NuGet: [DomainBase on NuGet](https://www.nuget.org/packages/DomainBase/)
+- Repository: [github.com/ymjaber/domain-base](https://github.com/ymjaber/domain-base)
+- Docs index: [docs/README.md](docs/README.md)
+- Why use this library: [docs/why-domainbase.md](docs/why-domainbase.md)
+- Contributing: [docs/contributing.md](docs/contributing.md)
+- FAQ: [docs/faq.md](docs/faq.md)
+- License: MIT ([LICENSE](LICENSE))
 

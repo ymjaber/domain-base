@@ -35,8 +35,8 @@ public class EnumerationAnalyzerTests
         var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new EnumerationAnalyzer());
         var diags = await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
 
-        Assert.Contains(diags, d => d.Id == "DBENUM001");
-        Assert.Contains(diags, d => d.Id == "DBENUM002");
+        Assert.Contains(diags, d => d.Id == "DBEN001");
+        Assert.Contains(diags, d => d.Id == "DBEN002");
     }
 }
 

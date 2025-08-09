@@ -2,14 +2,14 @@
   Diagnostics: [
     {
       Id: DBVO006,
-      Severity: Info,
-      Message: The property 'Name' has [SequenceEquality] but does not implement IEnumerable. Consider using [IncludeInEquality] instead.,
+      Severity: Error,
+      Message: The property 'Name' has [SequenceEquality] but does not implement IEnumerable/IEnumerator. Consider using [IncludeInEquality] instead.,
       Location: (9,19)
     },
     {
       Id: DBVO006,
-      Severity: Info,
-      Message: The property 'Count' has [SequenceEquality] but does not implement IEnumerable. Consider using [IncludeInEquality] instead.,
+      Severity: Error,
+      Message: The property 'Count' has [SequenceEquality] but does not implement IEnumerable/IEnumerator. Consider using [IncludeInEquality] instead.,
       Location: (12,16)
     }
   ],

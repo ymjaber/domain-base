@@ -71,5 +71,96 @@ public class ValueObjectAnalyzerTests
         Assert.Contains(diagnostics, d => d.Id == "DBVO003");
         Assert.Contains(diagnostics, d => d.Id == "DBVO004");
     }
+
+    [Fact]
+    public async Task InheritsValueObject_WithoutAttribute_ReportsImmutabilityWarnings()
+    {
+        var source = """
+            using DomainBase;
+
+            namespace TestNamespace;
+
+            public class PersonName : ValueObject<PersonName>
+            {
+                public string First { get; set; }
+                public int Age;
+            }
+            """;
+
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(DomainBase.Enumeration).Assembly.Location),
+        };
+        var compilation = CSharpCompilation.Create("Tests", new[] { tree }, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new ValueObjectAnalyzer());
+        var diags = await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
+
+        Assert.Contains(diags, d => d.Id == "DBVO010");
+        Assert.Contains(diags, d => d.Id == "DBVO011");
+    }
+
+    [Fact]
+    public async Task SimpleValueObject_ReportsWarning_WhenDeclaringAdditionalProperty()
+    {
+        var source = """
+            using DomainBase;
+
+            namespace TestNamespace;
+
+            public sealed class Age : ValueObject<Age, int>
+            {
+                public Age(int value) : base(value) {}
+                public int Extra { get; }
+            }
+            """;
+
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(DomainBase.Enumeration).Assembly.Location),
+        };
+        var compilation = CSharpCompilation.Create("Tests", new[] { tree }, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new ValueObjectAnalyzer());
+        var diags = await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
+
+        Assert.Contains(diags, d => d.Id == "DBVO012");
+    }
+
+    [Fact]
+    public async Task SimpleValueObject_ReportsWarning_WhenDeclaringAdditionalField()
+    {
+        var source = """
+            using DomainBase;
+
+            namespace TestNamespace;
+
+            public sealed class Weight : ValueObject<Weight, int>
+            {
+                public Weight(int value) : base(value) {}
+                private readonly int _ignoredBacking = 0; // readonly still counts as additional
+            }
+            """;
+
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(DomainBase.Enumeration).Assembly.Location),
+        };
+        var compilation = CSharpCompilation.Create("Tests", new[] { tree }, references, new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new ValueObjectAnalyzer());
+        var diags = await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync();
+
+        Assert.Contains(diags, d => d.Id == "DBVO012");
+    }
 }
 

@@ -56,12 +56,12 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    private static readonly DiagnosticDescriptor SequenceOnNonEnumerableInfo = new(
+    private static readonly DiagnosticDescriptor SequenceOnNonEnumerableError = new(
         id: "DBVO006",
         title: "SequenceEquality on non-sequence type",
-        messageFormat: "The {0} '{1}' has [SequenceEquality] but does not implement IEnumerable. Consider using [IncludeInEquality] instead.",
+        messageFormat: "The {0} '{1}' has [SequenceEquality] but does not implement IEnumerable/IEnumerator. Consider using [IncludeInEquality] instead.",
         category: "Usage",
-        defaultSeverity: DiagnosticSeverity.Info,
+        defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
     private static readonly DiagnosticDescriptor EqualityAttributeOnNonValueObjectError = new(
@@ -93,7 +93,7 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
         title: "Mutable property in ValueObject",
         messageFormat: "The property '{0}' in value object '{1}' must be get-only or init-only to enforce immutability",
         category: "Usage",
-        defaultSeverity: DiagnosticSeverity.Error,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
     private static readonly DiagnosticDescriptor FieldMustBeReadonlyError = new(
@@ -101,7 +101,15 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
         title: "Mutable field in ValueObject",
         messageFormat: "The field '{0}' in value object '{1}' must be declared readonly to enforce immutability",
         category: "Usage",
-        defaultSeverity: DiagnosticSeverity.Error,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true);
+
+    private static readonly DiagnosticDescriptor AdditionalMemberInSimpleValueObjectWarning = new(
+        id: "DBVO012",
+        title: "Additional members in simple ValueObject",
+        messageFormat: "The simple value object '{0}' should not declare additional {1} '{2}'. Only the 'Value' member is allowed.",
+        category: "Usage",
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
 
     /// <summary>
@@ -113,12 +121,13 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
         MissingCustomEqualsError,
         MissingCustomHashCodeError,
         MultipleEqualityAttributesError,
-        SequenceOnNonEnumerableInfo,
+        SequenceOnNonEnumerableError,
         EqualityAttributeOnNonValueObjectError,
         ValueObjectAttributeWithoutInheritanceError,
         DuplicateMethodNamesError,
         PropertyMustBeInitOnlyOrGetOnlyError,
-        FieldMustBeReadonlyError
+        FieldMustBeReadonlyError,
+        AdditionalMemberInSimpleValueObjectWarning
     );
 
     /// <inheritdoc />
@@ -145,6 +154,18 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(ValueObjectAttributeWithoutInheritanceError, attributeLocation, typeSymbol.Name));
         }
 
+        // Immutability should be enforced for any class inheriting from ValueObject<T>
+        if (inheritsValueObject)
+        {
+            AnalyzeImmutability(context, typeSymbol);
+        }
+
+        // Additional members should not be declared for simple value objects
+        if (InheritsFromSimpleValueObject(typeSymbol))
+        {
+            AnalyzeSimpleValueObjectAdditionalMembers(context, typeSymbol);
+        }
+
         if (hasValueObjectAttribute && inheritsValueObject)
         {
             // Check partial modifier on all declarations
@@ -164,11 +185,8 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeValueObjectMembers(SymbolAnalysisContext context, INamedTypeSymbol typeSymbol)
+    private static void AnalyzeImmutability(SymbolAnalysisContext context, INamedTypeSymbol typeSymbol)
     {
-        // Collect member info and perform checks
-        var members = new List<(ISymbol Member, ITypeSymbol Type, string Name, string Kind, AttributeData? Include, AttributeData? Custom, AttributeData? Sequence, AttributeData? Ignore)>();
-
         foreach (var member in typeSymbol.GetMembers())
         {
             if (member is IPropertySymbol property && IsAutoProperty(property))
@@ -181,9 +199,6 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
                         property.Name,
                         typeSymbol.Name));
                 }
-
-                var (include, custom, sequence, ignore) = GetEqualityAttributes(property);
-                members.Add((property, property.Type, property.Name, "property", include, custom, sequence, ignore));
             }
             else if (member is IFieldSymbol field && !field.IsStatic && !field.IsConst && !field.IsImplicitlyDeclared)
             {
@@ -198,6 +213,54 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
                         field.Name,
                         typeSymbol.Name));
                 }
+            }
+        }
+    }
+
+    private static void AnalyzeSimpleValueObjectAdditionalMembers(SymbolAnalysisContext context, INamedTypeSymbol typeSymbol)
+    {
+        foreach (var member in typeSymbol.GetMembers())
+        {
+            if (member is IPropertySymbol property && !property.IsStatic && !property.IsImplicitlyDeclared)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    AdditionalMemberInSimpleValueObjectWarning,
+                    property.Locations.FirstOrDefault() ?? Location.None,
+                    typeSymbol.Name,
+                    "property",
+                    property.Name));
+            }
+            else if (member is IFieldSymbol field && !field.IsStatic && !field.IsConst && !field.IsImplicitlyDeclared)
+            {
+                if (field.AssociatedSymbol is IPropertySymbol)
+                    continue; // skip backing fields
+
+                context.ReportDiagnostic(Diagnostic.Create(
+                    AdditionalMemberInSimpleValueObjectWarning,
+                    field.Locations.FirstOrDefault() ?? Location.None,
+                    typeSymbol.Name,
+                    "field",
+                    field.Name));
+            }
+        }
+    }
+
+    private static void AnalyzeValueObjectMembers(SymbolAnalysisContext context, INamedTypeSymbol typeSymbol)
+    {
+        // Collect member info and perform checks
+        var members = new List<(ISymbol Member, ITypeSymbol Type, string Name, string Kind, AttributeData? Include, AttributeData? Custom, AttributeData? Sequence, AttributeData? Ignore)>();
+
+        foreach (var member in typeSymbol.GetMembers())
+        {
+            if (member is IPropertySymbol property && IsAutoProperty(property))
+            {
+                var (include, custom, sequence, ignore) = GetEqualityAttributes(property);
+                members.Add((property, property.Type, property.Name, "property", include, custom, sequence, ignore));
+            }
+            else if (member is IFieldSymbol field && !field.IsStatic && !field.IsConst && !field.IsImplicitlyDeclared)
+            {
+                if (field.AssociatedSymbol is IPropertySymbol)
+                    continue; // skip backing fields
 
                 var (include, custom, sequence, ignore) = GetEqualityAttributes(field);
                 members.Add((field, field.Type, field.Name, "field", include, custom, sequence, ignore));
@@ -280,10 +343,10 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
             }
             else if (m.Sequence != null)
             {
-                if (!ImplementsIEnumerable(m.Type))
+                if (!IsEnumerableOrEnumerator(m.Type))
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
-                        SequenceOnNonEnumerableInfo,
+                        SequenceOnNonEnumerableError,
                         m.Member.Locations.FirstOrDefault() ?? Location.None,
                         m.Kind,
                         m.Name));
@@ -381,18 +444,58 @@ public sealed class ValueObjectAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    private static bool ImplementsIEnumerable(ITypeSymbol type)
+    private static bool InheritsFromSimpleValueObject(INamedTypeSymbol type)
     {
+        var baseType = type.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.IsGenericType &&
+                baseType.Name == "ValueObject" &&
+                baseType.ContainingNamespace?.ToDisplayString() == "DomainBase" &&
+                baseType.TypeArguments.Length == 2)
+            {
+                return true;
+            }
+            baseType = baseType.BaseType;
+        }
+        return false;
+    }
+
+    private static bool IsEnumerableOrEnumerator(ITypeSymbol type)
+    {
+        // Strings are enumerable but should not be considered sequences for this rule
         if (type.SpecialType == SpecialType.System_String)
             return false;
 
-        foreach (var i in type.AllInterfaces)
+        // Direct interface type checks
+        if (type.SpecialType == SpecialType.System_Collections_IEnumerable ||
+            type.SpecialType == SpecialType.System_Collections_IEnumerator)
+            return true;
+
+        if (type is INamedTypeSymbol namedType && namedType.IsGenericType)
         {
-            if (i.SpecialType == SpecialType.System_Collections_IEnumerable)
-                return true;
-            if (i.IsGenericType && i.ConstructedFrom.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T)
+            var constructed = namedType.ConstructedFrom.SpecialType;
+            if (constructed == SpecialType.System_Collections_Generic_IEnumerable_T ||
+                constructed == SpecialType.System_Collections_Generic_IEnumerator_T)
                 return true;
         }
+
+        // Implemented interfaces
+        foreach (var i in type.AllInterfaces)
+        {
+            if (i.SpecialType == SpecialType.System_Collections_IEnumerable ||
+                i.SpecialType == SpecialType.System_Collections_IEnumerator)
+                return true;
+
+            if (i.IsGenericType)
+            {
+                var constructedFrom = i.ConstructedFrom.SpecialType;
+                if (constructedFrom == SpecialType.System_Collections_Generic_IEnumerable_T ||
+                    constructedFrom == SpecialType.System_Collections_Generic_IEnumerator_T)
+                    return true;
+            }
+        }
+
         return false;
     }
 

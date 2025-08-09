@@ -6,10 +6,11 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsAotCompatible>true</IsAotCompatible>
     
     <!-- Package Information -->
     <PackageId>DomainBase</PackageId>
-    <Version>1.0.0</Version>
+    <Version>2.0.0</Version>
     <Authors>Yousef Jaber</Authors>
     <Company>PalJaber</Company>
     <Description>A lightweight .NET library providing essential building blocks for implementing Domain-Driven Design (DDD) patterns including entities, aggregate roots, value objects, domain events, specifications, and more.</Description>
@@ -22,7 +23,7 @@
     <PackageIcon>icon.png</PackageIcon>
     
     <!-- Build Properties -->
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -36,6 +37,10 @@
     <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" />
     <None Include="../../assets/icon.png" Pack="true" PackagePath="\" />
@@ -47,22 +52,37 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DomainBase.Analyzers\DomainBase.Analyzers.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" 
+                      PrivateAssets="All"
+                      AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="..\DomainBase.Generators\DomainBase.Generators.csproj" 
                       OutputItemType="Analyzer" 
                       ReferenceOutputAssembly="false" 
-                      PrivateAssets="All" />
+                      PrivateAssets="All"
+                      AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="..\DomainBase.CodeFixes\DomainBase.CodeFixes.csproj" 
                       OutputItemType="Analyzer" 
                       ReferenceOutputAssembly="false" 
-                      PrivateAssets="All" />
+                      PrivateAssets="All"
+                      AdditionalProperties="Configuration=$(Configuration)" />
   </ItemGroup>
   
-  <!-- Include the analyzer in the package -->
+  <!-- Include the analyzers in the package -->
   <ItemGroup>
     <None Include="..\DomainBase.Generators\bin\$(Configuration)\netstandard2.0\DomainBase.Generators.dll"
           Pack="true"
           PackagePath="analyzers/dotnet/cs"
           Visible="false" />
+    <None Include="..\DomainBase.Analyzers\bin\$(Configuration)\netstandard2.0\DomainBase.Analyzers.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" Condition="Exists('..\DomainBase.Analyzers\bin\$(Configuration)\netstandard2.0\DomainBase.Analyzers.dll')" />
+    <None Include="..\DomainBase.CodeFixes\bin\$(Configuration)\netstandard2.0\DomainBase.CodeFixes.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" Condition="Exists('..\DomainBase.CodeFixes\bin\$(Configuration)\netstandard2.0\DomainBase.CodeFixes.dll')" />
   </ItemGroup>
 
 </Project>

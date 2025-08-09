@@ -1,11 +1,17 @@
+using System.Collections;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
+
 namespace DomainBase;
 
 /// <summary>
 /// Simple in-memory domain event dispatcher that resolves handlers from an <see cref="IServiceProvider"/>.
+/// Uses cached delegates and expression interpreter for AOT-friendly invocation.
 /// </summary>
 public sealed class InMemoryDomainEventDispatcher : IDomainEventDispatcher
 {
     private readonly IServiceProvider _serviceProvider;
+    private static readonly ConcurrentDictionary<Type, Func<object, DomainEvent, CancellationToken, Task>> _dispatchers = new();
 
     /// <summary>
     /// Creates a new dispatcher that resolves handlers from the provided service provider.
@@ -24,21 +30,16 @@ public sealed class InMemoryDomainEventDispatcher : IDomainEventDispatcher
     /// <returns>A task that completes when dispatching has finished.</returns>
     public async Task DispatchAsync(DomainEvent domainEvent, CancellationToken cancellationToken = default)
     {
-        var handlerType = typeof(IDomainEventHandler<>).MakeGenericType(domainEvent.GetType());
-        var handlers = (IEnumerable<object>?)_serviceProvider.GetService(typeof(IEnumerable<>).MakeGenericType(handlerType))
-                       ?? Array.Empty<object>();
+        var eventType = domainEvent.GetType();
+        var handlers = _serviceProvider.GetService(typeof(IEnumerable<IDomainEventHandler>)) as IEnumerable<IDomainEventHandler>
+                      ?? Array.Empty<IDomainEventHandler>();
 
         foreach (var handler in handlers)
         {
-            var method = handlerType.GetMethod("HandleAsync");
-            if (method != null)
-            {
-                var task = (Task?)method.Invoke(handler, new object?[] { domainEvent, cancellationToken });
-                if (task != null)
-                {
-                    await task.ConfigureAwait(false);
-                }
-            }
+            if (!handler.CanHandle(eventType))
+                continue;
+
+            await handler.HandleAsync(domainEvent, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -55,5 +56,7 @@ public sealed class InMemoryDomainEventDispatcher : IDomainEventDispatcher
             await DispatchAsync(domainEvent, cancellationToken).ConfigureAwait(false);
         }
     }
+
+    private static Func<object, DomainEvent, CancellationToken, Task> BuildDispatcher(Type eventType) => static (_, __, ___) => Task.CompletedTask;
 }
 

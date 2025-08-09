@@ -1,132 +1,97 @@
-### Examples
+# Real-world examples
 
-#### E‑commerce Domain
+## Example 1: Customer domain
 
 ```csharp
-public class ECommerceExample
+// Value objects
+[ValueObject]
+public sealed partial class FullName : ValueObject<FullName>
 {
-    // Rich domain entity with business logic
-    public class Product : AggregateRoot<Guid>
+    [IncludeInEquality(Priority = 10)] public string First { get; init; }
+    [IncludeInEquality(Priority = 10)] public string Last  { get; init; }
+}
+
+// Enumeration
+public sealed partial class CustomerStatus : Enumeration
+{
+    public static readonly CustomerStatus Active   = new(1, "Active");
+    public static readonly CustomerStatus Inactive = new(2, "Inactive");
+    public CustomerStatus(int value, string name) : base(value, name) { }
+}
+
+// Aggregate
+public sealed class Customer : AggregateRoot<Guid>
+{
+    public Customer(Guid id, FullName name) : base(id)
+    { Name = name; Status = CustomerStatus.Active; }
+
+    public FullName Name { get; private set; }
+    public CustomerStatus Status { get; private set; }
+
+    public void Deactivate(string reason)
     {
-        public ProductName Name { get; private set; }
-        public Money Price { get; private set; }
-        public StockQuantity Stock { get; private set; }
-        public ProductStatus Status { get; private set; }
-
-        public Product(Guid id, ProductName name, Money price) : base(id)
-        {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
-            Price = price ?? throw new ArgumentNullException(nameof(price));
-            Stock = StockQuantity.Zero;
-            Status = ProductStatus.Draft;
-        }
-
-        public void Publish()
-        {
-            if (Status != ProductStatus.Draft)
-                throw new InvalidOperationException("Only draft products can be published");
-
-            Status = ProductStatus.Active;
-            AddDomainEvent(new ProductPublishedEvent(Id, Name.Value));
-        }
-
-        public void AddStock(int quantity)
-        {
-            Stock = Stock.Add(quantity);
-            AddDomainEvent(new StockAddedEvent(Id, quantity));
-        }
-
-        public bool TryReserveStock(int quantity, out StockReservation reservation)
-        {
-            reservation = default!;
-            if (Status != ProductStatus.Active)
-                return false;
-
-            if (!Stock.CanReserve(quantity))
-                return false;
-
-            reservation = new StockReservation(Guid.NewGuid(), Id, quantity);
-            Stock = Stock.Reserve(quantity);
-            AddDomainEvent(new StockReservedEvent(Id, reservation.Id, quantity));
-            return true;
-        }
+        if (Status == CustomerStatus.Inactive) return;
+        Status = CustomerStatus.Inactive;
+        AddDomainEvent(new CustomerDeactivated(Id, reason));
     }
+}
 
-    // Value objects enforce business rules
-    public class Money : ValueObject<Money>
-    {
-        public decimal Amount { get; }
-        public string Currency { get; }
+public sealed record CustomerDeactivated(Guid CustomerId, string Reason) : DomainEvent;
+```
 
-        public Money(decimal amount, string currency)
-        {
-            if (amount < 0)
-                throw new ArgumentException("Amount cannot be negative");
-            Amount = amount;
-            Currency = currency ?? throw new ArgumentNullException(nameof(currency));
-        }
+## Example 2: Catalog with specifications
 
-        protected override bool EqualsCore(Money other) => Amount == other.Amount && Currency == other.Currency;
-        protected override int GetHashCodeCore() => HashCode.Combine(Amount, Currency);
+```csharp
+public sealed class Product : AggregateRoot<Guid>
+{
+    public Product(Guid id, string name, decimal price) : base(id)
+    { Name = name; Price = price; }
 
-        public Money Add(Money other)
-        {
-            if (Currency != other.Currency)
-                throw new InvalidOperationException("Cannot add different currencies");
-            return new Money(Amount + other.Amount, Currency);
-        }
-    }
+    public string Name { get; private set; }
+    public decimal Price { get; private set; }
+}
 
-    // Specifications for complex queries
-    public class AvailableProductsSpec : Specification<Product>
-    {
-        public AvailableProductsSpec()
-            : base(p => p.Status == ProductStatus.Active && p.Stock.Available > 0)
-        {
-            AddInclude(p => p.Reviews);
-            ApplyOrderBy(p => p.Name.Value);
-        }
-    }
+public sealed class ProductsByPrice : Specification<Product>
+{
+    public ProductsByPrice(decimal min, decimal max)
+        : base(p => p.Price >= min && p.Price <= max) { }
+}
+
+public sealed class ProductRepository : Repository<Product, Guid>
+{
+    private readonly DbContext _db; public ProductRepository(DbContext db, IDomainEventDispatcher d) : base(d) => _db = db;
+    public override Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default) => _db.Set<Product>().FindAsync([id], ct).AsTask();
+    public override Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken ct = default) => _db.Set<Product>().ToListAsync(ct).ContinueWith(t => (IReadOnlyList<Product>)t.Result, ct);
+    public override Task<IReadOnlyList<Product>> FindAsync(ISpecification<Product> s, CancellationToken ct = default) => SpecificationEvaluator.GetQuery(_db.Set<Product>(), s).ToListAsync(ct).ContinueWith(t => (IReadOnlyList<Product>)t.Result, ct);
+    public override Task<Product?> FindSingleAsync(ISpecification<Product> s, CancellationToken ct = default) => SpecificationEvaluator.GetQuery(_db.Set<Product>(), s).FirstOrDefaultAsync(ct);
+    public override Task<int> CountAsync(ISpecification<Product> s, CancellationToken ct = default) => SpecificationEvaluator.GetQuery(_db.Set<Product>(), s).CountAsync(ct);
+    public override Task<bool> AnyAsync(ISpecification<Product> s, CancellationToken ct = default) => SpecificationEvaluator.GetQuery(_db.Set<Product>(), s).AnyAsync(ct);
+    protected override Task AddCoreAsync(Product e, CancellationToken ct) => _db.AddAsync(e, ct).AsTask();
+    protected override Task AddRangeCoreAsync(IEnumerable<Product> es, CancellationToken ct) { _db.AddRange(es); return Task.CompletedTask; }
+    protected override Task UpdateCoreAsync(Product e, CancellationToken ct) { _db.Update(e); return Task.CompletedTask; }
+    protected override Task RemoveCoreAsync(Product e, CancellationToken ct) { _db.Remove(e); return Task.CompletedTask; }
+    protected override Task RemoveRangeCoreAsync(IEnumerable<Product> es, CancellationToken ct) { _db.RemoveRange(es); return Task.CompletedTask; }
 }
 ```
 
-#### Banking Transfers
+## Example 3: JSON and EF Core converters
+
+See more: [guide.md](guide.md), [reference.md](reference.md).
 
 ```csharp
-public sealed class Account : AggregateRoot<Guid>
+[GenerateVoJsonConverter]
+[GenerateEfValueConverter]
+[GenerateTypeConverter]
+public sealed partial class Sku : ValueObject<Sku, string>
+{ public Sku(string value) : base(value) { } }
+
+[GenerateJsonConverter]
+[GenerateEfValueConverter]
+public sealed partial class PaymentMethod : Enumeration
 {
-    public Money Balance { get; private set; }
-    public Account(Guid id, Money openingBalance) : base(id) => Balance = openingBalance;
-
-    public bool TryWithdraw(Money amount)
-    {
-        if (Balance.Amount < amount.Amount || Balance.Currency != amount.Currency)
-            return false;
-        Balance = new Money(Balance.Amount - amount.Amount, Balance.Currency);
-        return true;
-    }
-
-    public void Deposit(Money amount)
-    {
-        if (Balance.Currency != amount.Currency)
-            throw new InvalidOperationException("Currency mismatch");
-        Balance = new Money(Balance.Amount + amount.Amount, Balance.Currency);
-    }
-}
-
-public sealed class TransferService : IDomainService
-{
-    public bool Transfer(Account from, Account to, Money amount)
-    {
-        if (!from.TryWithdraw(amount)) return false;
-        to.Deposit(amount);
-        return true;
-    }
+    public static readonly PaymentMethod CreditCard = new(1, "Credit Card");
+    public static readonly PaymentMethod Cash       = new(2, "Cash");
+    public PaymentMethod(int value, string name) : base(value, name) { }
 }
 ```
-
-#### Bookings
-
-- Reservation aggregate emitting domain events
-- Date range value object with validation
 

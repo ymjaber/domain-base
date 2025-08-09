@@ -11,15 +11,15 @@ namespace DomainBase.Analyzers;
 
 /// <summary>
 /// Analyzer for classes inheriting from <c>DomainBase.Enumeration</c>.
-/// Reports DBENUM003 when the class is not declared partial.
-/// Reports DBENUM001/DBENUM002 when duplicate int values or string names are used
+/// Reports DBEN003 when the class is not declared partial.
+/// Reports DBEN001/DBEN002 when duplicate int values or string names are used
 /// in static instances where constructor arguments are literal constants.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class EnumerationAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor DuplicateValueError = new(
-        id: "DBENUM001",
+        id: "DBEN001",
         title: "Duplicate enumeration value",
         messageFormat: "The enumeration '{0}' has duplicate value '{1}'. Values must be unique within an enumeration type.",
         category: "Usage",
@@ -27,7 +27,7 @@ public sealed class EnumerationAnalyzer : DiagnosticAnalyzer
         isEnabledByDefault: true);
 
     private static readonly DiagnosticDescriptor DuplicateNameError = new(
-        id: "DBENUM002",
+        id: "DBEN002",
         title: "Duplicate enumeration name",
         messageFormat: "The enumeration '{0}' has duplicate name '{1}'. Names must be unique within an enumeration type.",
         category: "Usage",
@@ -35,7 +35,7 @@ public sealed class EnumerationAnalyzer : DiagnosticAnalyzer
         isEnabledByDefault: true);
 
     private static readonly DiagnosticDescriptor NonPartialClassError = new(
-        id: "DBENUM003",
+        id: "DBEN003",
         title: "Enumeration class must be partial",
         messageFormat: "The enumeration '{0}' must be declared as a partial class to enable source generation",
         category: "Usage",

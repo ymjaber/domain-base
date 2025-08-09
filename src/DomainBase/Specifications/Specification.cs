@@ -49,11 +49,14 @@ public abstract class Specification<T> : ISpecification<T>
     /// <inheritdoc/>
     public bool IsPagingEnabled { get; private set; }
 
+    private Func<T, bool>? _compiledCriteria;
+
     /// <inheritdoc/>
     public virtual bool IsSatisfiedBy(T entity)
     {
-        var predicate = Criteria.Compile();
-        return predicate(entity);
+        // Prefer interpretation for AOT friendliness (no IL emit)
+        _compiledCriteria ??= Criteria.Compile(preferInterpretation: true);
+        return _compiledCriteria(entity);
     }
 
     /// <summary>
