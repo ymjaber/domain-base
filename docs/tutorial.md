@@ -7,12 +7,12 @@ Goal: by the end, you will model an order domain with value objects, enumeration
 - [Prerequisites](#prerequisites)
 - [1) Define value objects](#1-define-value-objects)
 - [2) Define enumerations](#2-define-enumerations)
-- [3) Define an aggregate root](#3-define-an-aggregate-root)
-- [4) Handle domain events](#4-handle-domain-events)
-- [5) Query with specifications](#5-query-with-specifications)
-- [6) Repository pattern (optional)](#6-repository-pattern-optional)
-- [7) Put it together](#7-put-it-together)
- - [8) Use in a console app](#8-use-in-a-console-app)
+- [3) Define an entity](#3-define-an-entity)
+- [4) Define an aggregate root](#4-define-an-aggregate-root)
+- [5) Handle domain events](#5-handle-domain-events)
+- [6) Query with specifications](#6-query-with-specifications)
+- [7) Repository pattern (optional)](#7-repository-pattern-optional)
+- [8) Put it together](#8-put-it-together)
 
 ## Prerequisites
 
@@ -41,6 +41,18 @@ public sealed partial class Money : ValueObject<Money>
 }
 ```
 
+### Usage
+
+```csharp
+var orderId = new OrderId(Guid.NewGuid());
+var sameOrderId = new OrderId(orderId.Value);
+var idsEqual = orderId == sameOrderId; // true
+
+var price1 = new Money(100m, "USD");
+var price2 = new Money(100m, "USD");
+var valueObjectsEqual = price1.Equals(price2); // true
+```
+
 ## 2) Define enumerations
 
 ```csharp
@@ -57,7 +69,57 @@ public sealed partial class OrderStatus : Enumeration
 }
 ```
 
-## 3) Define an aggregate root
+### Usage
+
+```csharp
+// Enumerations helpers
+var allStatuses = OrderStatus.GetAll(); // IReadOnlyCollection<OrderStatus>
+
+var submittedByValue = OrderStatus.FromValue(1); // Submitted
+var paidValue = OrderStatus.FromName("Paid").Value; // 2
+
+if (OrderStatus.TryFromName("Shipped", out var shipped))
+{
+    // use shipped
+}
+else
+{
+    // handle unknown
+}
+```
+
+## 3) Define an entity
+
+```csharp
+using DomainBase;
+
+public sealed class OrderItem : Entity<Guid>
+{
+    public OrderItem(Guid id, string sku, int quantity, Money unitPrice) : base(id)
+    {
+        Sku = sku;
+        Quantity = quantity;
+        UnitPrice = unitPrice;
+    }
+
+    public string Sku { get; private set; }
+    public int Quantity { get; private set; }
+    public Money UnitPrice { get; private set; }
+
+    public Money Subtotal() => new(UnitPrice.Amount * Quantity, UnitPrice.Currency);
+}
+```
+
+### Usage
+
+```csharp
+var id = Guid.NewGuid();
+var item1 = new OrderItem(id, "SKU-001", 2, new Money(50, "USD"));
+var item2 = new OrderItem(id, "SKU-CHANGED", 1, new Money(120, "USD"));
+var sameEntity = item1 == item2; // true (identity-based equality)
+```
+
+## 4) Define an aggregate root
 
 ```csharp
 using DomainBase;
@@ -98,7 +160,15 @@ public sealed record OrderSubmittedWithMetadata(Guid OrderId) : DomainEventWithM
 public sealed record OrderPaid(Guid OrderId, Money Amount) : DomainEvent;
 ```
 
-## 4) Handle domain events
+### Usage
+
+```csharp
+var order = new Order(Guid.NewGuid());
+order.Submit();
+order.Pay(new Money(100, "USD"));
+```
+
+## 5) Handle domain events
 
 ```csharp
 public sealed class OrderSubmittedHandler : IDomainEventHandler<OrderSubmitted>
@@ -128,7 +198,17 @@ services.AddScoped<IDomainEventHandler, OrderSubmittedHandler>();
 services.AddScoped<IDomainEventHandler, OrderPaidHandler>();
 ```
 
-## 5) Query with specifications
+### Usage
+
+```csharp
+var order = new Order(Guid.NewGuid());
+order.Submit();
+// Events are queued on the aggregate and can be observed
+var hasSubmitted = order.DomainEvents.OfType<OrderSubmitted>().Any();
+// When using a repository (below), events are dispatched then cleared automatically.
+```
+
+## 6) Query with specifications
 
 ```csharp
 public sealed class OrdersByStatus : Specification<Order>
@@ -152,7 +232,18 @@ var filtered = SpecificationEvaluator.GetQuery(db.Orders, new OrdersByStatus(Ord
 var isSatisfied = new OrdersByStatus(OrderStatus.Submitted).IsSatisfiedBy(new Order(Guid.NewGuid()));
 ```
 
-## 6) Repository pattern (optional)
+### Usage
+
+```csharp
+var order = new Order(Guid.NewGuid());
+var spec = new OrdersByStatus(OrderStatus.Submitted);
+var matches = spec.IsSatisfiedBy(order);
+
+var paged = new OrdersPaged(page: 1, size: 20);
+var query = SpecificationEvaluator.GetQuery(db.Orders, paged);
+```
+
+## 7) Repository pattern (optional)
 
 ```csharp
 public sealed class OrderRepository : Repository<Order, Guid>
@@ -175,7 +266,15 @@ public sealed class OrderRepository : Repository<Order, Guid>
 }
 ```
 
-## 7) Put it together
+### Usage
+
+```csharp
+var dispatcher = provider.GetRequiredService<IDomainEventDispatcher>();
+var repo = new OrderRepository(dbContext, dispatcher);
+await repo.AddAsync(new Order(Guid.NewGuid()));
+```
+
+## 8) Put it together
 
 ```csharp
 var repo = provider.GetRequiredService<OrderRepository>();
@@ -190,42 +289,3 @@ await repo.UpdateAsync(order);
 You now have a cohesive domain model with safe equality, events, and query composition.
 
 Continue to the guide: [guide.md](guide.md) and API reference: [reference.md](reference.md).
-
-## 8) Use in a console app
-
-Create a minimal console app (dotnet new console) and reference your domain project. Then use the enumeration helpers and value objects directly:
-
-```csharp
-using System;
-using DomainBase;
-
-// Using enumeration helpers
-var allStatuses = OrderStatus.GetAll();
-Console.WriteLine($"All statuses: {string.Join(", ", allStatuses)}");
-
-var submittedByValue = OrderStatus.FromValue(1);
-Console.WriteLine($"FromValue(1): {submittedByValue.Name}");
-
-var approvedByName = OrderStatus.FromName("Approved");
-Console.WriteLine($"FromName(Approved): {approvedByName.Value}");
-
-if (OrderStatus.TryFromName("Shipped", out var shipped))
-{
-    Console.WriteLine($"TryFromName(Shipped): {shipped!.Name}");
-}
-else
-{
-    Console.WriteLine("Unknown status name: Shipped");
-}
-
-// Using a wrapper value object
-var orderId = new OrderId(Guid.NewGuid());
-Console.WriteLine($"OrderId: {orderId.Value}");
-
-// Using a rich value object
-var price = new Money(100m, "USD");
-Console.WriteLine($"Price: {price.Amount} {price.Currency}");
-```
-
-This is often the fastest way to sanity-check your model while you iterate.
-
