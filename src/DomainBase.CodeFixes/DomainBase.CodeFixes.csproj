@@ -7,7 +7,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <Version>2.0.0</Version>
+    <Version>1.9.8</Version>
+    <PackageId>DomainBase.CodeFixes</PackageId>
+    <Authors>Yousef Jaber</Authors>
+    <Company>PalJaber</Company>
+    <Description>Code fixes for DomainBase analyzers.</Description>
+    <PackageTags>domainbase;ddd;roslyn;code-fix;value-object;enumeration</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ymjaber/domain-base</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ymjaber/domain-base</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
 
     <!-- Analyzer-specific properties -->
     <IncludeBuildOutput>false</IncludeBuildOutput>
@@ -21,6 +32,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/icon.png" Pack="true" PackagePath="\" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
   </ItemGroup>
