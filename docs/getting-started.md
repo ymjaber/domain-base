@@ -8,7 +8,8 @@ This guide takes you from install to a working, ergonomic domain model with valu
 - [Install](#install)
 - [Project setup](#project-setup)
 - [What you get](#what-you-get)
-- [First 10 minutes (hands-on)](#first-10-minutes-hands-on)
+- [Value object equality options](#value-object-equality-options)
+- [Hands-on](#hands-on)
 - [JSON and EF Core integration](#json-and-ef-core-integration)
 - [Querying with specifications](#querying-with-specifications)
 - [Repository pattern (optional)](#repository-pattern-optional)
@@ -48,7 +49,77 @@ Keep in mind:
 - `Repository<TEntity,TId>` abstraction
 - Analyzers and code fixes for correctness and ergonomics
 
-## First 10 minutes (hands-on)
+## Value object equality options
+
+You have three clear ways to implement value object equality:
+
+### 1) Simple wrapper (single property)
+
+- Best for one-field value objects. Inherit `ValueObject<TSelf, TValue>`.
+- No attributes needed; equality is implemented against the wrapped `Value`.
+
+```csharp
+public sealed partial class OrderId : ValueObject<OrderId, Guid>
+{
+    public OrderId(Guid value) : base(value) { }
+}
+```
+
+### 2) Manual overrides (EqualsCore/GetHashCodeCore)
+
+- Inherit `ValueObject<TSelf>` and override the core methods yourself.
+- Useful when you want full control without generator attributes.
+
+```csharp
+public sealed class Percentage : ValueObject<Percentage>
+{
+    public decimal Value { get; }
+    public Percentage(decimal value) => Value = value;
+
+    protected override bool EqualsCore(Percentage other) => Value == other.Value;
+    protected override int GetHashCodeCore() => Value.GetHashCode();
+}
+```
+
+### 3) Generator-driven with [ValueObject]
+
+- Annotate the class with `[ValueObject]` and mark members with exactly one equality attribute.
+- Start with `[IncludeInEquality]`. Use `[SequenceEquality]` for collections and `[CustomEquality]` for special cases.
+
+Sequence equality example:
+
+```csharp
+[ValueObject]
+public sealed partial class Basket : ValueObject<Basket>
+{
+    [SequenceEquality(OrderMatters = false, DeepEquality = true)]
+    public IReadOnlyList<OrderId> ItemIds { get; init; } = Array.Empty<OrderId>();
+}
+```
+
+Custom equality example (case-insensitive last name):
+
+```csharp
+[ValueObject]
+public sealed partial class PersonName : ValueObject<PersonName>
+{
+    [IncludeInEquality] public string FirstName { get; init; } = "";
+    [CustomEquality]    public string LastName  { get; init; } = "";
+
+    private static void Equals_LastName(in string v, in string o, out bool r)
+        => r = string.Equals(v, o, StringComparison.OrdinalIgnoreCase);
+
+    private static void GetHashCode_LastName(in string v, ref HashCode h)
+        => h.Add(v.ToUpperInvariant());
+}
+```
+
+Notes:
+- Use wrappers or manual overrides for single-property value objects; avoid `[ValueObject]` there.
+- Reserve `[CustomEquality]` for complex value objects where specific members need custom comparison.
+- Strings are not considered sequences for `[SequenceEquality]`.
+
+## Hands-on
 
 1) Single-property value object (wrapper)
 
