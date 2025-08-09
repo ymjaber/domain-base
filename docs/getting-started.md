@@ -59,7 +59,7 @@ You have three clear ways to implement value object equality:
 - No attributes needed; equality is implemented against the wrapped `Value`.
 
 ```csharp
-public sealed partial class OrderId : ValueObject<OrderId, Guid>
+public class OrderId : ValueObject<OrderId, Guid>
 {
     public OrderId(Guid value) : base(value) { }
 }
@@ -71,7 +71,7 @@ public sealed partial class OrderId : ValueObject<OrderId, Guid>
 - Useful when you want full control without generator attributes.
 
 ```csharp
-public sealed class Percentage : ValueObject<Percentage>
+public class Percentage : ValueObject<Percentage>
 {
     public decimal Value { get; }
     public Percentage(decimal value) => Value = value;
@@ -90,7 +90,7 @@ Sequence equality example:
 
 ```csharp
 [ValueObject]
-public sealed partial class Basket : ValueObject<Basket>
+public partial class Basket : ValueObject<Basket>
 {
     [SequenceEquality(OrderMatters = false, DeepEquality = true)]
     public IReadOnlyList<OrderId> ItemIds { get; init; } = Array.Empty<OrderId>();
@@ -116,7 +116,7 @@ public sealed partial class PersonName : ValueObject<PersonName>
 
 Notes:
 - Use wrappers or manual overrides for single-property value objects; avoid `[ValueObject]` there.
-- Reserve `[CustomEquality]` for complex value objects where specific members need custom comparison.
+- Reserve `[CustomEquality]` for complex value objects where specific members need custom comparison. The IDE you are using (Visual Studio, Rider, VS Code, Neovim, or any other IDE/TextEditor using roslyn) will give option to generate Equals_{Value} and GetHashCode_{Value} methods.
 - Strings are not considered sequences for `[SequenceEquality]`.
 
 ## Hands-on
