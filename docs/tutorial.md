@@ -24,20 +24,39 @@ Goal: by the end, you will model an order domain with value objects, enumeration
 ```csharp
 using DomainBase;
 
-[GenerateVoJsonConverter]
-public sealed partial class OrderId : ValueObject<OrderId, Guid>
+// Simple value object (value wrapper)
+public sealed class OrderId : ValueObject<OrderId, Guid>
 {
     public OrderId(Guid value) : base(value) { }
 }
 
+// Value object without using the generators (not recommended as source generator can handle the equality automatically)
+public sealed class CustomerName : ValueObject<CustomerName>
+{
+    public CustomerName(string firstName, string lastName) { FirstName = firstName; LastName = lastName }
+    
+    public string FirstName { get; }
+    public string LastName { get; }
+
+    public string FullName => $"{FirstName} {LastName}";
+
+    protected override bool EqualsCore(CustomerName other) =>
+        FirstName == other.FirstName &&
+        LastName == other.LastName;
+
+    protected  override int GetHashCodeCore() => HashCode.Combine(FirstName, LastName);
+}
+
+// Value objects using generators
 [ValueObject]
 public sealed partial class Money : ValueObject<Money>
 {
+    public Money(decimal amount, string currency) { Amount = amount; Currency = currency; }
+    
     [IncludeInEquality] public decimal Amount { get; init; }
     [IncludeInEquality] public string  Currency { get; init; }
 
     public static Money Zero(string currency) => new(0m, currency);
-    public Money(decimal amount, string currency) { Amount = amount; Currency = currency; }
 }
 ```
 
@@ -47,6 +66,10 @@ public sealed partial class Money : ValueObject<Money>
 var orderId = new OrderId(Guid.NewGuid());
 var sameOrderId = new OrderId(orderId.Value);
 var idsEqual = orderId == sameOrderId; // true
+
+var name1 = new CustomerName("Yousef", "Jaber");
+var name2 = new CustomerName("Yousef", "Ibrahim");
+var namesEqual = name1 == name2; // false
 
 var price1 = new Money(100m, "USD");
 var price2 = new Money(100m, "USD");
@@ -65,7 +88,15 @@ public sealed partial class OrderStatus : Enumeration
     public static readonly OrderStatus Submitted = new(1, "Submitted");
     public static readonly OrderStatus Paid      = new(2, "Paid");
     public static readonly OrderStatus Shipped   = new(3, "Shipped");
-    public OrderStatus(int value, string name) : base(value, name) { }
+    
+    private OrderStatus(int value, string name) : base(value, name) { }
+
+    public bool IsFinal => this == Shipped;
+
+    public OrderStatus Ship() =>
+        this == Shipped ? throw new AlreadyShippedException() :
+        this != Paid ? throw new NotPaidException() :
+        Shipped;
 }
 ```
 
@@ -73,6 +104,8 @@ public sealed partial class OrderStatus : Enumeration
 
 ```csharp
 // Enumerations helpers
+// (GetAll, FromValue, FromName, TryFromValue, TryFromName)
+// Those methods are already generated wit the source generator
 var allStatuses = OrderStatus.GetAll(); // IReadOnlyCollection<OrderStatus>
 
 var submittedByValue = OrderStatus.FromValue(1); // Submitted
