@@ -1,0 +1,288 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+
+namespace DomainBase.Generators;
+
+/// <summary>
+/// Source generator that augments classes inheriting from <c>DomainBase.Enumeration</c> with helper APIs
+/// (lookup by value/name and try-parse methods).
+/// </summary>
+[Generator]
+public class EnumerationGenerator : IIncrementalGenerator
+{
+    // This generator does not declare analyzer diagnostics; validation is enforced by analyzers.
+    /// <summary>
+    /// Configures the incremental generation pipeline.
+    /// </summary>
+    /// <param name="context">The generator initialization context.</param>
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        var classDeclarations = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                predicate: static (s, _) => IsSyntaxTargetForGeneration(s),
+                transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))
+            .Where(static m => m is not null);
+
+        var compilationAndClasses = context.CompilationProvider.Combine(classDeclarations.Collect());
+
+        context.RegisterSourceOutput(compilationAndClasses,
+            static (spc, source) => Execute(source.Left, source.Right, spc));
+    }
+
+    /// <summary>
+    /// Determines whether a syntax node is a candidate for generation.
+    /// </summary>
+    private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
+        => node is ClassDeclarationSyntax c && c.BaseList != null;
+
+    /// <summary>
+    /// Verifies the semantic target is a class inheriting from <c>DomainBase.Enumeration</c>.
+    /// </summary>
+    private static ClassDeclarationSyntax? GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
+    {
+        var classDeclarationSyntax = (ClassDeclarationSyntax)context.Node;
+        var semanticModel = context.SemanticModel;
+        var classSymbol = semanticModel.GetDeclaredSymbol(classDeclarationSyntax);
+        
+        if (classSymbol == null)
+            return null;
+            
+        // Check if the class inherits from Enumeration
+        var baseType = classSymbol.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.ToDisplayString() == "DomainBase.Enumeration")
+                return classDeclarationSyntax;
+            baseType = baseType.BaseType;
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Performs generation for the discovered classes and emits diagnostics where applicable.
+    /// </summary>
+    private static void Execute(Compilation compilation, ImmutableArray<ClassDeclarationSyntax?> classes, SourceProductionContext context)
+    {
+        if (classes.IsDefaultOrEmpty)
+            return;
+
+        var distinctClasses = classes.Where(x => x is not null).Distinct();
+        var enumerationSymbol = compilation.GetTypeByMetadataName("DomainBase.Enumeration");
+
+        if (enumerationSymbol == null)
+            return;
+
+        foreach (var classDeclaration in distinctClasses)
+        {
+            if (classDeclaration == null)
+                continue;
+                
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            var model = compilation.GetSemanticModel(classDeclaration.SyntaxTree);
+            var classSymbol = model.GetDeclaredSymbol(classDeclaration);
+
+            if (classSymbol == null || !InheritsFrom(classSymbol, enumerationSymbol))
+                continue;
+
+            // Analyzer handles partial class validation
+            if (!classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+                continue;
+
+            var fields = GetEnumerationFields(classSymbol);
+            
+            if (fields == null)
+                continue;
+                
+            var source = GenerateEnumerationExtensions(classSymbol, fields);
+            context.AddSource($"{classSymbol.Name}.g.cs", SourceText.From(source, Encoding.UTF8));
+        }
+    }
+
+    private static bool InheritsFrom(INamedTypeSymbol classSymbol, INamedTypeSymbol baseSymbol)
+    {
+        var current = classSymbol.BaseType;
+        while (current != null)
+        {
+            if (current.Equals(baseSymbol, SymbolEqualityComparer.Default))
+                return true;
+            current = current.BaseType;
+        }
+        return false;
+    }
+
+    private static string GenerateEnumerationExtensions(INamedTypeSymbol classSymbol, List<(string name, int value, string displayName)> fields)
+    {
+        var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
+        var className = classSymbol.Name;
+        var isGlobalNamespace = classSymbol.ContainingNamespace.IsGlobalNamespace;
+        
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated/>");
+        sb.AppendLine("#nullable enable");
+        sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
+        sb.AppendLine();
+        
+        if (!isGlobalNamespace)
+        {
+            sb.AppendLine($"namespace {namespaceName}");
+            sb.AppendLine("{");
+        }
+        
+        var indent = isGlobalNamespace ? "" : "    ";
+        sb.AppendLine($"{indent}partial class {className}");
+        sb.AppendLine($"{indent}{{");
+        
+        GenerateStaticFields(sb, className, fields, indent);
+        GenerateGetAllMethod(sb, className, fields, indent);
+        GenerateFromValueMethod(sb, className, fields, indent);
+        GenerateFromNameMethod(sb, className, fields, indent);
+        GenerateTryFromValueMethod(sb, className, indent);
+        GenerateTryFromNameMethod(sb, className, indent);
+        
+        sb.AppendLine($"{indent}}}");
+        
+        if (!isGlobalNamespace)
+        {
+            sb.AppendLine("}");
+        }
+        
+        return sb.ToString();
+    }
+
+    private static void GenerateStaticFields(StringBuilder sb, string className, List<(string name, int value, string displayName)> fields, string indent)
+    {
+        sb.AppendLine($"{indent}    private static readonly Dictionary<int, {className}> _byValue = new Dictionary<int, {className}>()");
+        sb.AppendLine($"{indent}    {{");
+        foreach (var field in fields)
+        {
+            sb.AppendLine($"{indent}        [{field.value}] = {field.name},");
+        }
+        sb.AppendLine($"{indent}    }};");
+        sb.AppendLine();
+        
+        sb.AppendLine($"{indent}    private static readonly Dictionary<string, {className}> _byName = new Dictionary<string, {className}>()");
+        sb.AppendLine($"{indent}    {{");
+        foreach (var field in fields)
+        {
+            sb.AppendLine($"{indent}        [\"{field.displayName}\"] = {field.name},");
+        }
+        sb.AppendLine($"{indent}    }};");
+        sb.AppendLine();
+    }
+
+    private static void GenerateGetAllMethod(StringBuilder sb, string className, List<(string name, int value, string displayName)> fields, string indent)
+    {
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Gets all values of {className} ordered by value.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    public static IReadOnlyCollection<{className}> GetAll() => _byValue.Values;");
+        sb.AppendLine();
+    }
+
+    private static void GenerateFromValueMethod(StringBuilder sb, string className, List<(string name, int value, string displayName)> fields, string indent)
+    {
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Gets the {className} instance from its value.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    public static {className} FromValue(int value)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        if (_byValue.TryGetValue(value, out var result))");
+        sb.AppendLine($"{indent}            return result;");
+        sb.AppendLine($"{indent}        throw new InvalidOperationException($\"No {className} with value {{value}} found.\");");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+    }
+
+    private static void GenerateFromNameMethod(StringBuilder sb, string className, List<(string name, int id, string displayName)> fields, string indent)
+    {
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Gets the {className} instance from its name.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    public static {className} FromName(string name)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        if (_byName.TryGetValue(name, out var result))");
+        sb.AppendLine($"{indent}            return result;");
+        sb.AppendLine($"{indent}        throw new InvalidOperationException($\"No {className} with name '{{name}}' found.\");");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+    }
+
+    private static void GenerateTryFromValueMethod(StringBuilder sb, string className, string indent)
+    {
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Tries to get the {className} instance from its value.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    public static bool TryFromValue(int value, [NotNullWhen(true)] out {className}? result)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        return _byValue.TryGetValue(value, out result);");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+    }
+
+    private static void GenerateTryFromNameMethod(StringBuilder sb, string className, string indent)
+    {
+        sb.AppendLine($"{indent}    /// <summary>");
+        sb.AppendLine($"{indent}    /// Tries to get the {className} instance from its name.");
+        sb.AppendLine($"{indent}    /// </summary>");
+        sb.AppendLine($"{indent}    public static bool TryFromName(string name, [NotNullWhen(true)] out {className}? result)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        return _byName.TryGetValue(name, out result);");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+    }
+
+    
+
+    private static List<(string name, int value, string displayName)>? GetEnumerationFields(
+        INamedTypeSymbol classSymbol)
+    {
+        var fields = new List<(string name, int value, string displayName, Location location)>();
+        var valueSet = new HashSet<int>();
+        var nameSet = new HashSet<string>(StringComparer.Ordinal);
+        
+        foreach (var member in classSymbol.GetMembers())
+        {
+            if (member is IFieldSymbol field && 
+                field.IsStatic && 
+                field.IsReadOnly && 
+                field.Type.Equals(classSymbol, SymbolEqualityComparer.Default))
+            {
+                var syntax = field.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+                if (syntax is VariableDeclaratorSyntax declarator && declarator.Initializer?.Value != null)
+                {
+                    BaseObjectCreationExpressionSyntax? creation = declarator.Initializer.Value switch
+                    {
+                        ObjectCreationExpressionSyntax objectCreation => objectCreation,
+                        ImplicitObjectCreationExpressionSyntax implicitCreation => implicitCreation,
+                        _ => null
+                    };
+
+                    if (creation?.ArgumentList?.Arguments.Count >= 2)
+                    {
+                        var valueArg = creation.ArgumentList.Arguments[0].Expression;
+                        var nameArg = creation.ArgumentList.Arguments[1].Expression;
+                        
+                        if (valueArg is LiteralExpressionSyntax valueLiteral && valueLiteral.Token.Value is int value &&
+                            nameArg is LiteralExpressionSyntax nameLiteral && nameLiteral.Token.Value is string name)
+                        {
+                        fields.Add((field.Name, value, name, declarator.GetLocation()));
+                        }
+                    }
+                }
+            }
+        }
+        // Deduplication and diagnostics are handled in the analyzer, not the generator
+        return fields.OrderBy(f => f.value).Select(f => (f.name, f.value, f.displayName)).ToList();
+    }
+
+}

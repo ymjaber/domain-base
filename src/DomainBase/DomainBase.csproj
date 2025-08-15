@@ -1,0 +1,102 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- AOT and Trimming Support -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <IsTrimmable>true</IsTrimmable>
+    
+    <!-- Package Information -->
+    <PackageId>DomainBase</PackageId>
+    <Version>2.3.0</Version>
+    <Authors>Yousef Jaber</Authors>
+    <Company>PalJaber</Company>
+    <Description>DDD primitives for .NET with source generators, analyzers, and code fixes. Build expressive domain models (Entities, Value Objects, Aggregates, Enumerations, Domain Events) with AOT-friendly, zero-reflection helpers.</Description>
+    <PackageTags>ddd;domain-driven-design;entity;aggregate;value-object;domain-event;</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ymjaber/domain-base</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ymjaber/domain-base</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>2.0.0 – First public release.</PackageReleaseNotes>
+    
+    <!-- Build Properties -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <UseSharedCompilation>false</UseSharedCompilation>
+    
+    <!-- Build Performance -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="../../assets/icon.png" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.Net.Compilers.Toolset" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DomainBase.Analyzers\DomainBase.Analyzers.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" 
+                      PrivateAssets="All"
+                      AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Include="..\DomainBase.Generators\DomainBase.Generators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" 
+                      PrivateAssets="All"
+                      AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Include="..\DomainBase.CodeFixes\DomainBase.CodeFixes.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" 
+                      PrivateAssets="All"
+                      AdditionalProperties="Configuration=$(Configuration)" />
+  </ItemGroup>
+  
+  <!-- Include the analyzers in the package -->
+  <ItemGroup>
+    <None Include="..\DomainBase.Generators\bin\$(Configuration)\netstandard2.0\DomainBase.Generators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" />
+    <None Include="..\DomainBase.Analyzers\bin\$(Configuration)\netstandard2.0\DomainBase.Analyzers.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" Condition="Exists('..\DomainBase.Analyzers\bin\$(Configuration)\netstandard2.0\DomainBase.Analyzers.dll')" />
+    <None Include="..\DomainBase.CodeFixes\bin\$(Configuration)\netstandard2.0\DomainBase.CodeFixes.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
+          Visible="false" Condition="Exists('..\DomainBase.CodeFixes\bin\$(Configuration)\netstandard2.0\DomainBase.CodeFixes.dll')" />
+  </ItemGroup>
+
+  <!-- Ensure Roslyn components are built before packing so analyzers ship inside the package -->
+  <Target Name="BuildRoslynComponents" BeforeTargets="Pack">
+    <MSBuild
+      Projects="..\DomainBase.Analyzers\DomainBase.Analyzers.csproj;..\DomainBase.Generators\DomainBase.Generators.csproj;..\DomainBase.CodeFixes\DomainBase.CodeFixes.csproj"
+      Properties="Configuration=$(Configuration)"
+      Targets="Build" />
+  </Target>
+
+</Project>
